@@ -202,6 +202,14 @@ export class CrabStateManager {
     this.setEmotion('surprised');
   }
 
+  public onLovestruck(): void {
+    this.setEmotion('lovestruck', 8000);
+  }
+
+  public onClaudeFan(): void {
+    this.setEmotion('claudeFan', 8000);
+  }
+
   public onLongSession(): void {
     this.state.stats.energy = Math.max(0, this.state.stats.energy - 15);
     if (this.state.stats.energy < 30) {
@@ -209,17 +217,22 @@ export class CrabStateManager {
     }
   }
 
+  // Random value between min and max (inclusive)
+  private randomRange(min: number, max: number): number {
+    return Math.floor(Math.random() * (max - min + 1)) + min;
+  }
+
   // Manual interactions
   public feed(): void {
-    this.state.stats.hunger = Math.min(100, this.state.stats.hunger + 30);
+    this.state.stats.hunger = Math.min(100, this.state.stats.hunger + this.randomRange(5, 15));
     this.state.stats.lastFed = Date.now();
     this.setEmotion('happy');
     this.saveState();
   }
 
   public pet(): void {
-    this.state.stats.happiness = Math.min(100, this.state.stats.happiness + 10);
-    this.state.stats.energy = Math.min(100, this.state.stats.energy + 10); // Petting wakes up the crab!
+    this.state.stats.happiness = Math.min(100, this.state.stats.happiness + this.randomRange(5, 15));
+    this.state.stats.energy = Math.min(100, this.state.stats.energy + this.randomRange(5, 15));
     this.setEmotion('excited');
     this.saveState();
   }

@@ -8,7 +8,9 @@ export type Emotion =
   | 'tired'
   | 'hungry'
   | 'angry'
-  | 'surprised';
+  | 'surprised'
+  | 'lovestruck'
+  | 'claudeFan';
 
 export interface CrabFrame {
   art: string[];  // Changed to array of lines for individual centering
@@ -118,7 +120,17 @@ export const crabFrames: Record<Emotion, CrabFrame[]> = {
         '  ████████',
         '  ▐▐  ▌▌'
       ],
-      bubble: '...'
+      bubble: '.'
+    },
+    {
+      art: [
+        '  ████████',
+        '  █▛▜██▛▜█',
+        '  ████████████',
+        '  ████████',
+        '  ▐▐  ▌▌'
+      ],
+      bubble: '..'
     },
     {
       art: [
@@ -255,6 +267,52 @@ export const crabFrames: Record<Emotion, CrabFrame[]> = {
       ],
       bubble: '!?'
     }
+  ],
+
+  lovestruck: [
+    {
+      art: [
+        '  ████████',
+        '  █▄ ██ ▄█',
+        '  ████████████',
+        '  ████████',
+        '  ▐▐  ▌▌'
+      ],
+      bubble: '♥'
+    },
+    {
+      art: [
+        '  ████████',
+        '  █▄ ██ ▄█',
+        '  ████████████',
+        '  ████████',
+        '  ▐▐  ▌▌'
+      ],
+      bubble: '♡'
+    }
+  ],
+
+  claudeFan: [
+    {
+      art: [
+        '  ████████',
+        '  █▄ ██ ▄█',
+        '  ████████████',
+        '  ████████',
+        '  ▐▐  ▌▌'
+      ],
+      bubble: '♥'
+    },
+    {
+      art: [
+        '  ████████',
+        '  █▄ ██ ▄█',
+        '  ████████████',
+        '  ████████',
+        '  ▐▐  ▌▌'
+      ],
+      bubble: '♡'
+    }
   ]
 };
 
@@ -272,5 +330,7 @@ export const emotionLabels: Record<Emotion, string> = {
   tired: 'Sleepy...',
   hungry: 'Hungry!',
   angry: 'Frustrated!',
-  surprised: 'WHOAH!'
+  surprised: 'WHOAH!',
+  lovestruck: 'Ferris! ♥',
+  claudeFan: 'Claude! ♥'
 };

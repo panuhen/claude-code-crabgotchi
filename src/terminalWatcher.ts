@@ -22,6 +22,18 @@ export class TerminalWatcher {
   private lastFileSize: number = 0;
 
   private patterns: PatternMatch[] = [
+    // Ferris easter egg - lovestruck (fellow crab!) - only from user messages
+    {
+      pattern: /"role"\s*:\s*"user"\s*,\s*"content"\s*:\s*"[^"]*\bferris\b/i,
+      handler: (m) => m.onLovestruck(),
+      cooldown: 10000
+    },
+    // Claude easter egg - proud of creator! - only from user messages
+    {
+      pattern: /"role"\s*:\s*"user"\s*,\s*"content"\s*:\s*"[^"]*\bclaude\b/i,
+      handler: (m) => m.onClaudeFan(),
+      cooldown: 10000
+    },
     // Plan/Explore agents - curious (exclusive trigger for curious)
     {
       pattern: /"subagent_type"\s*:\s*"(Plan|Explore)"/i,

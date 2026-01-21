@@ -150,28 +150,37 @@ export class CrabWebviewProvider implements vscode.WebviewViewProvider {
       box-sizing: border-box;
     }
 
+    html {
+      min-height: 100%;
+    }
+
+    body {
+      min-height: 100%;
+      overflow-y: auto;
+    }
+
     body {
       font-family: 'Courier New', monospace;
       background: var(--vscode-sideBar-background);
       color: var(--vscode-sideBar-foreground);
-      padding: 16px;
+      padding: 8px;
       display: flex;
       flex-direction: column;
       align-items: center;
-      min-height: 100vh;
     }
 
     .crab-container {
       position: relative;
       text-align: center;
-      margin-bottom: 20px;
+      margin-top: 24px;
+      margin-bottom: 8px;
     }
 
     .bubble {
       position: absolute;
-      top: -10px;
-      right: 10px;
-      font-size: 20px;
+      top: -8px;
+      right: 5px;
+      font-size: 14px;
       color: ${colors.bubbleColor};
       text-shadow:
         -1px -1px 0 #000,
@@ -187,11 +196,10 @@ export class CrabWebviewProvider implements vscode.WebviewViewProvider {
     }
 
     .crab-art {
-      font-size: 12px;
-      line-height: 1.1;
+      font-size: 11px;
+      line-height: 1.0;
       color: ${colors.crabColor};
-      text-shadow: 0 0 10px ${crabGlow};
-      font-family: monospace;
+      text-shadow: 0 0 8px ${crabGlow};
       display: flex;
       flex-direction: column;
       align-items: center;
@@ -201,28 +209,33 @@ export class CrabWebviewProvider implements vscode.WebviewViewProvider {
       white-space: pre;
     }
 
+    .white-eyes {
+      color: #ffffff;
+      text-shadow: 0 0 8px rgba(255, 255, 255, 0.5);
+    }
+
     .emotion-label {
-      font-size: 16px;
+      font-size: 12px;
       font-weight: bold;
-      margin: 10px 0;
+      margin: 4px 0;
       color: var(--vscode-textLink-foreground);
     }
 
     .stats-container {
       width: 100%;
       max-width: 200px;
-      margin-top: 20px;
+      margin-top: 8px;
       font-family: monospace;
     }
 
     .stat {
-      margin: 6px 0;
-      font-size: 12px;
+      margin: 2px 0;
+      font-size: 11px;
     }
 
     .stat-name {
       display: inline-block;
-      width: 70px;
+      width: 50px;
     }
 
     .stat-bar.good {
@@ -239,16 +252,16 @@ export class CrabWebviewProvider implements vscode.WebviewViewProvider {
 
     .buttons {
       display: flex;
-      gap: 10px;
-      margin-top: 20px;
+      gap: 6px;
+      margin-top: 8px;
     }
 
     button {
-      padding: 8px 16px;
+      padding: 4px 10px;
       font-family: inherit;
-      font-size: 12px;
+      font-size: 10px;
       border: 1px solid var(--vscode-button-border, var(--vscode-contrastBorder));
-      border-radius: 4px;
+      border-radius: 3px;
       background: var(--vscode-button-secondaryBackground);
       color: var(--vscode-button-secondaryForeground);
       cursor: pointer;
@@ -259,41 +272,16 @@ export class CrabWebviewProvider implements vscode.WebviewViewProvider {
       background: var(--vscode-button-secondaryHoverBackground);
     }
 
-    .test-section {
-      margin-top: 20px;
-      width: 100%;
-      max-width: 220px;
-    }
-
-    .test-label {
-      font-size: 11px;
-      opacity: 0.7;
-      margin-bottom: 8px;
+    .credits {
+      margin-top: 10px;
+      font-size: 9px;
+      opacity: 0.5;
       text-align: center;
     }
 
-    .emotion-buttons {
-      display: flex;
-      flex-wrap: wrap;
-      gap: 6px;
-      justify-content: center;
-    }
-
-    .emotion-buttons button {
-      padding: 4px 8px;
-      font-size: 10px;
-    }
-
-    .credits {
-      margin-top: auto;
-      padding-top: 20px;
-      font-size: 10px;
-      opacity: 0.6;
-    }
-
     .settings-toggle {
-      margin-top: 20px;
-      font-size: 11px;
+      margin-top: 10px;
+      font-size: 10px;
       opacity: 0.6;
       cursor: pointer;
       user-select: none;
@@ -305,9 +293,9 @@ export class CrabWebviewProvider implements vscode.WebviewViewProvider {
 
     .settings-content {
       display: none;
-      margin-top: 10px;
+      margin-top: 6px;
       width: 100%;
-      max-width: 220px;
+      max-width: 200px;
     }
 
     .settings-content.open {
@@ -317,8 +305,8 @@ export class CrabWebviewProvider implements vscode.WebviewViewProvider {
     .color-row {
       display: flex;
       align-items: center;
-      gap: 8px;
-      margin: 8px 0;
+      gap: 6px;
+      margin: 4px 0;
     }
 
     .color-label {
@@ -381,8 +369,8 @@ export class CrabWebviewProvider implements vscode.WebviewViewProvider {
     .timer-settings-row {
       display: flex;
       align-items: center;
-      gap: 6px;
-      margin: 8px 0;
+      gap: 4px;
+      margin: 4px 0;
     }
 
     .timer-icon-btn {
@@ -409,9 +397,99 @@ export class CrabWebviewProvider implements vscode.WebviewViewProvider {
       border: 1px solid var(--vscode-input-border);
       border-radius: 2px;
     }
+
+    /* Night mode */
+    body.night-mode {
+      background: linear-gradient(to bottom, #0d1117, #161b22);
+    }
+
+    body.night-mode .crab-art {
+      filter: brightness(0.85) saturate(0.85);
+    }
+
+    body.night-mode .bubble {
+      filter: brightness(0.8);
+    }
+
+    body.night-mode .emotion-label {
+      opacity: 0.8;
+    }
+
+    .stars {
+      display: none;
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      pointer-events: none;
+      overflow: hidden;
+      z-index: 0;
+    }
+
+    body.night-mode .stars {
+      display: block;
+    }
+
+    .star {
+      position: absolute;
+      width: 2px;
+      height: 2px;
+      background: #fff;
+      border-radius: 50%;
+      animation: twinkle 2s ease-in-out infinite;
+    }
+
+    @keyframes twinkle {
+      0%, 100% { opacity: 0.3; }
+      50% { opacity: 1; }
+    }
+
+    .moon {
+      display: none;
+      position: fixed;
+      top: 10px;
+      right: 15px;
+      font-size: 16px;
+      opacity: 0.7;
+      z-index: 1;
+    }
+
+    body.night-mode .moon {
+      display: block;
+    }
+
+    .night-toggle {
+      margin-top: 4px;
+      display: flex;
+      align-items: center;
+      gap: 4px;
+    }
+
+    /* Pet hearts animation */
+    .heart {
+      position: fixed;
+      font-size: 16px;
+      pointer-events: none;
+      animation: floatHeart 1.5s ease-out forwards;
+      z-index: 100;
+    }
+
+    @keyframes floatHeart {
+      0% {
+        opacity: 1;
+        transform: translateY(0) scale(1);
+      }
+      100% {
+        opacity: 0;
+        transform: translateY(-80px) scale(0.5);
+      }
+    }
   </style>
 </head>
 <body>
+  <div class="stars" id="stars"></div>
+  <div class="moon">☽</div>
   <div class="crab-container">
     <div class="bubble" id="bubble"></div>
     <div class="crab-art" id="crab-art">
@@ -445,22 +523,6 @@ export class CrabWebviewProvider implements vscode.WebviewViewProvider {
     <button id="pet-btn">Pet</button>
   </div>
 
-  <div class="test-section">
-    <div class="test-label">Test Emotions</div>
-    <div class="emotion-buttons">
-      <button data-emotion="neutral">Neutral</button>
-      <button data-emotion="happy">Happy</button>
-      <button data-emotion="excited">Excited</button>
-      <button data-emotion="curious">Curious</button>
-      <button data-emotion="thinking">Thinking</button>
-      <button data-emotion="sad">Sad</button>
-      <button data-emotion="tired">Tired</button>
-      <button data-emotion="hungry">Hungry</button>
-      <button data-emotion="angry">Angry</button>
-      <button data-emotion="surprised">Surprised</button>
-    </div>
-  </div>
-
   <div class="settings-toggle" id="settings-toggle">&#9881; Settings</div>
   <div class="settings-content" id="settings-content">
     <div class="timer-settings-row">
@@ -469,6 +531,10 @@ export class CrabWebviewProvider implements vscode.WebviewViewProvider {
       <input type="number" id="timer-minutes" class="timer-input" value="${timer.minutes}" min="1" max="120">
       <span style="font-size: 11px; opacity: 0.7;">min</span>
       <span id="timer-reset" class="timer-icon-btn" title="Reset">⏹</span>
+    </div>
+    <div class="night-toggle">
+      <input type="checkbox" id="night-mode-toggle" class="timer-checkbox">
+      <label for="night-mode-toggle" style="font-size: 11px; opacity: 0.7;">Night mode (test)</label>
     </div>
     <div class="color-row">
       <span class="color-label">Crab</span>
@@ -494,9 +560,8 @@ export class CrabWebviewProvider implements vscode.WebviewViewProvider {
         <div class="color-swatch${colors.bubbleColor === '#ffffff' ? ' selected' : ''}" data-color="#ffffff" style="background: #ffffff;" title="White"></div>
       </div>
     </div>
+    <div class="credits">Claude Code Crabgotchi</div>
   </div>
-
-  <div class="credits">Claude Code Crabgotchi</div>
 
   <script>
     const vscode = acquireVsCodeApi();
@@ -526,15 +591,28 @@ export class CrabWebviewProvider implements vscode.WebviewViewProvider {
 
     document.getElementById('pet-btn').addEventListener('click', () => {
       vscode.postMessage({ command: 'pet' });
+      spawnHearts();
     });
 
-    // Emotion test buttons
-    document.querySelectorAll('.emotion-buttons button').forEach(btn => {
-      btn.addEventListener('click', () => {
-        const emotion = btn.getAttribute('data-emotion');
-        vscode.postMessage({ command: 'setEmotion', emotion });
-      });
-    });
+    function spawnHearts() {
+      const hearts = ['♥', '♡', '❤'];
+      const crabRect = document.querySelector('.crab-container').getBoundingClientRect();
+
+      for (let i = 0; i < 6; i++) {
+        setTimeout(() => {
+          const heart = document.createElement('div');
+          heart.className = 'heart';
+          heart.textContent = hearts[Math.floor(Math.random() * hearts.length)];
+          // Spawn across the width, around crab area
+          heart.style.left = (20 + Math.random() * (window.innerWidth - 40)) + 'px';
+          heart.style.top = (crabRect.top + Math.random() * 60) + 'px';
+          heart.style.color = ['#e06c75', '#c678dd', '#e5c07b'][Math.floor(Math.random() * 3)];
+          document.body.appendChild(heart);
+
+          setTimeout(() => heart.remove(), 1500);
+        }, i * 80);
+      }
+    }
 
     // Settings toggle
     document.getElementById('settings-toggle').addEventListener('click', () => {
@@ -651,12 +729,69 @@ export class CrabWebviewProvider implements vscode.WebviewViewProvider {
     // Initialize
     updateTimerBar();
 
+    // Night mode
+    const starsContainer = document.getElementById('stars');
+    const nightToggle = document.getElementById('night-mode-toggle');
+
+    // Generate random stars
+    function generateStars() {
+      starsContainer.innerHTML = '';
+      for (let i = 0; i < 20; i++) {
+        const star = document.createElement('div');
+        star.className = 'star';
+        star.style.left = Math.random() * 100 + '%';
+        star.style.top = Math.random() * 100 + '%';
+        star.style.animationDelay = Math.random() * 2 + 's';
+        star.style.width = (Math.random() * 2 + 1) + 'px';
+        star.style.height = star.style.width;
+        starsContainer.appendChild(star);
+      }
+    }
+    generateStars();
+
+    function setNightMode(enabled) {
+      document.body.classList.toggle('night-mode', enabled);
+      nightToggle.checked = enabled;
+    }
+
+    // Check if it's night time (11pm - 5am)
+    function isNightTime() {
+      const hour = new Date().getHours();
+      return hour >= 23 || hour < 5;
+    }
+
+    // Auto-enable night mode if it's night time
+    setNightMode(isNightTime());
+
+    // Manual toggle
+    nightToggle.addEventListener('change', (e) => {
+      setNightMode(e.target.checked);
+    });
+
+    // Check time every minute to auto-toggle
+    setInterval(() => {
+      if (!nightToggle.checked && isNightTime()) {
+        setNightMode(true);
+      } else if (nightToggle.checked && !isNightTime()) {
+        // Only auto-disable if user hasn't manually enabled it
+        // We'll leave it on if manually toggled
+      }
+    }, 60000);
+
     window.addEventListener('message', (event) => {
       const message = event.data;
       if (message.type === 'update') {
-        // Render each line centered
+        const isLovestruck = message.emotion === 'Ferris! ♥' || message.emotion === 'Claude! ♥';
+        // Render each line centered, with special eyes in white for lovestruck
         crabArt.innerHTML = message.art
-          .map(line => '<div class="crab-line">' + line + '</div>')
+          .map(line => {
+            // Make puppy eyes white only when lovestruck
+            if (isLovestruck) {
+              // Match the eye pattern: █▄ ██ ▄█
+              line = line.replace(/█▄ ██ ▄█/g, '█<span class="white-eyes">▄</span> ██ <span class="white-eyes">▄</span>█');
+            }
+            return '<div class="crab-line">' + line + '</div>';
+          })
           .join('');
         bubble.textContent = message.bubble;
         emotion.textContent = message.emotion;

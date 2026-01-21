@@ -14,17 +14,8 @@
   ],
   "main": "./out/extension.js",
   "contributes": {
-    "viewsContainers": {
-      "activitybar": [
-        {
-          "id": "claude-crabgotchi",
-          "title": "Crabgotchi",
-          "icon": "media/crab-icon.svg"
-        }
-      ]
-    },
     "views": {
-      "claude-crabgotchi": [
+      "explorer": [
         {
           "type": "webview",
           "id": "claudeCrab.tamagotchi",

@@ -16,10 +16,9 @@ export class TerminalWatcher {
   private lastTriggers: Map<string, number> = new Map();
   private errorCount: number = 0;
   private successCount: number = 0;
-  private outputBuffer: string = '';
-  private bufferTimer: NodeJS.Timeout | null = null;
-  private fileWatcher: fs.FSWatcher | null = null;
-  private lastFileSize: number = 0;
+  private fileSizes: Map<string, number> = new Map(); // Track size per file
+  private pollTimer: NodeJS.Timeout | null = null;
+  private claudeProjectDir: string | null = null;
 
   private patterns: PatternMatch[] = [
     // Ferris easter egg - lovestruck (fellow crab!) - only from user messages
@@ -40,10 +39,10 @@ export class TerminalWatcher {
       handler: (m) => m.onQuestion(),
       cooldown: 3000
     },
-    // Git success - excited!
+    // Git success - surprised!
     {
       pattern: /git commit|git push|committed|pushed to|pull request|PR created/i,
-      handler: (m) => m.onMultipleSuccesses(),
+      handler: (m) => m.onSurprise(),
       cooldown: 3000
     },
     // Tests passing - excited!
@@ -206,41 +205,97 @@ export class TerminalWatcher {
     this.watchClaudeLogFiles();
   }
 
+  private getClaudeProjectDir(): string | null {
+    // Claude Code stores logs in ~/.claude/projects/{sanitized-workspace-path}/
+    const claudeBase = path.join(os.homedir(), '.claude', 'projects');
+
+    if (!fs.existsSync(claudeBase)) {
+      return null;
+    }
+
+    // Get current workspace folder
+    const workspaceFolders = vscode.workspace.workspaceFolders;
+    if (workspaceFolders && workspaceFolders.length > 0) {
+      // Claude sanitizes paths: /home/user/project -> -home-user-project
+      const workspacePath = workspaceFolders[0].uri.fsPath;
+      const sanitizedPath = workspacePath.replace(/\//g, '-');
+      const projectDir = path.join(claudeBase, sanitizedPath);
+
+      if (fs.existsSync(projectDir)) {
+        return projectDir;
+      }
+    }
+
+    // Fallback: watch the entire projects directory
+    return claudeBase;
+  }
+
   private watchClaudeLogFiles(): void {
-    // Claude Code stores logs in ~/.claude/projects/
-    const claudeDir = path.join(os.homedir(), '.claude', 'projects');
+    this.claudeProjectDir = this.getClaudeProjectDir();
+
+    if (!this.claudeProjectDir) {
+      console.log('Claude log directory not found, using fallback triggers');
+      return;
+    }
+
+    // Use polling for cross-platform reliability (fs.watch recursive is unreliable on Linux)
+    this.pollTimer = setInterval(() => {
+      this.pollLogFiles();
+    }, 1000); // Poll every second
+
+    // Also listen for workspace changes
+    this.disposables.push(
+      vscode.workspace.onDidChangeWorkspaceFolders(() => {
+        this.claudeProjectDir = this.getClaudeProjectDir();
+      })
+    );
+  }
+
+  private pollLogFiles(): void {
+    if (!this.claudeProjectDir) return;
 
     try {
-      if (fs.existsSync(claudeDir)) {
-        // Watch for changes in the Claude directory
-        this.fileWatcher = fs.watch(claudeDir, { recursive: true }, (eventType, filename) => {
-          if (filename && filename.endsWith('.jsonl')) {
-            this.handleLogFileChange(path.join(claudeDir, filename));
-          }
-        });
-      }
+      this.scanDirectory(this.claudeProjectDir);
     } catch {
-      // Log directory doesn't exist or not accessible - that's fine
-      console.log('Claude log directory not found, using fallback triggers');
+      // Directory might not exist yet
     }
   }
 
-  private handleLogFileChange(filePath: string): void {
+  private scanDirectory(dir: string): void {
+    if (!fs.existsSync(dir)) return;
+
+    const entries = fs.readdirSync(dir, { withFileTypes: true });
+
+    for (const entry of entries) {
+      const fullPath = path.join(dir, entry.name);
+
+      if (entry.isDirectory()) {
+        // Recurse into subdirectories (for subagents/)
+        this.scanDirectory(fullPath);
+      } else if (entry.isFile() && entry.name.endsWith('.jsonl')) {
+        this.checkFileForChanges(fullPath);
+      }
+    }
+  }
+
+  private checkFileForChanges(filePath: string): void {
     try {
       const stats = fs.statSync(filePath);
-      if (stats.size > this.lastFileSize) {
-        // New content was added, read the tail
+      const lastSize = this.fileSizes.get(filePath) || 0;
+
+      if (stats.size > lastSize) {
+        // New content was added, read only the new part
         const fd = fs.openSync(filePath, 'r');
-        const buffer = Buffer.alloc(stats.size - this.lastFileSize);
-        fs.readSync(fd, buffer, 0, buffer.length, this.lastFileSize);
+        const buffer = Buffer.alloc(stats.size - lastSize);
+        fs.readSync(fd, buffer, 0, buffer.length, lastSize);
         fs.closeSync(fd);
 
         const newContent = buffer.toString('utf8');
         this.processLogContent(newContent);
-        this.lastFileSize = stats.size;
+        this.fileSizes.set(filePath, stats.size);
       }
     } catch {
-      // File might be locked or deleted
+      // File might be locked or deleted - ignore
     }
   }
 
@@ -268,11 +323,8 @@ export class TerminalWatcher {
     for (const disposable of this.disposables) {
       disposable.dispose();
     }
-    if (this.bufferTimer) {
-      clearTimeout(this.bufferTimer);
-    }
-    if (this.fileWatcher) {
-      this.fileWatcher.close();
+    if (this.pollTimer) {
+      clearInterval(this.pollTimer);
     }
   }
 }

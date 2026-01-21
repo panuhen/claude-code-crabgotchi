@@ -459,13 +459,6 @@ export class CrabWebviewProvider implements vscode.WebviewViewProvider {
       display: block;
     }
 
-    .night-toggle {
-      margin-top: 4px;
-      display: flex;
-      align-items: center;
-      gap: 4px;
-    }
-
     /* Pet hearts animation */
     .heart {
       position: fixed;
@@ -531,10 +524,6 @@ export class CrabWebviewProvider implements vscode.WebviewViewProvider {
       <input type="number" id="timer-minutes" class="timer-input" value="${timer.minutes}" min="1" max="120">
       <span style="font-size: 11px; opacity: 0.7;">min</span>
       <span id="timer-reset" class="timer-icon-btn" title="Reset">⏹</span>
-    </div>
-    <div class="night-toggle">
-      <input type="checkbox" id="night-mode-toggle" class="timer-checkbox">
-      <label for="night-mode-toggle" style="font-size: 11px; opacity: 0.7;">Night mode (test)</label>
     </div>
     <div class="color-row">
       <span class="color-label">Crab</span>
@@ -731,7 +720,6 @@ export class CrabWebviewProvider implements vscode.WebviewViewProvider {
 
     // Night mode
     const starsContainer = document.getElementById('stars');
-    const nightToggle = document.getElementById('night-mode-toggle');
 
     // Generate random stars
     function generateStars() {
@@ -749,34 +737,21 @@ export class CrabWebviewProvider implements vscode.WebviewViewProvider {
     }
     generateStars();
 
-    function setNightMode(enabled) {
-      document.body.classList.toggle('night-mode', enabled);
-      nightToggle.checked = enabled;
-    }
-
-    // Check if it's night time (11pm - 5am)
+    // Check if it's night time (11pm - 5am local time)
     function isNightTime() {
       const hour = new Date().getHours();
       return hour >= 23 || hour < 5;
     }
 
-    // Auto-enable night mode if it's night time
-    setNightMode(isNightTime());
+    function updateNightMode() {
+      document.body.classList.toggle('night-mode', isNightTime());
+    }
 
-    // Manual toggle
-    nightToggle.addEventListener('change', (e) => {
-      setNightMode(e.target.checked);
-    });
+    // Set initial night mode state
+    updateNightMode();
 
     // Check time every minute to auto-toggle
-    setInterval(() => {
-      if (!nightToggle.checked && isNightTime()) {
-        setNightMode(true);
-      } else if (nightToggle.checked && !isNightTime()) {
-        // Only auto-disable if user hasn't manually enabled it
-        // We'll leave it on if manually toggled
-      }
-    }, 60000);
+    setInterval(updateNightMode, 60000);
 
     window.addEventListener('message', (event) => {
       const message = event.data;

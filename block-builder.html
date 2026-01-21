@@ -1,0 +1,332 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Block Art Builder</title>
+  <style>
+    * { box-sizing: border-box; }
+    body {
+      font-family: monospace;
+      background: #1e1e1e;
+      color: #fff;
+      padding: 20px;
+      user-select: none;
+    }
+    h1 { margin: 0 0 20px 0; font-size: 18px; }
+
+    .container {
+      display: flex;
+      gap: 40px;
+    }
+
+    .panel {
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+
+    .label {
+      font-size: 12px;
+      color: #888;
+    }
+
+    /* Palette */
+    .palette {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 4px;
+      max-width: 300px;
+      margin-bottom: 20px;
+    }
+
+    .palette-item {
+      width: 32px;
+      height: 32px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 24px;
+      background: #333;
+      border: 2px solid #555;
+      cursor: pointer;
+    }
+
+    .palette-item:hover {
+      border-color: #888;
+    }
+
+    .palette-item.selected {
+      border-color: #e5c07b;
+      background: #444;
+    }
+
+    /* Grid */
+    .grid {
+      display: inline-grid;
+      gap: 1px;
+      background: #333;
+      padding: 1px;
+      cursor: crosshair;
+    }
+
+    .cell {
+      width: 24px;
+      height: 24px;
+      background: #1e1e1e;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 20px;
+    }
+
+    .cell:hover {
+      background: #2a2a2a;
+    }
+
+    /* Preview */
+    .preview {
+      font-size: 16px;
+      line-height: 1.1;
+      background: #111;
+      padding: 20px;
+      white-space: pre;
+      min-width: 200px;
+      min-height: 100px;
+    }
+
+    .preview.large {
+      font-size: 32px;
+    }
+
+    /* Buttons */
+    .buttons {
+      display: flex;
+      gap: 10px;
+      margin-top: 10px;
+    }
+
+    button {
+      padding: 8px 16px;
+      font-family: monospace;
+      font-size: 14px;
+      background: #333;
+      color: #fff;
+      border: 1px solid #555;
+      cursor: pointer;
+    }
+
+    button:hover {
+      background: #444;
+    }
+
+    .toast {
+      position: fixed;
+      bottom: 20px;
+      left: 50%;
+      transform: translateX(-50%);
+      background: #e5c07b;
+      color: #000;
+      padding: 10px 20px;
+      border-radius: 4px;
+      display: none;
+    }
+
+    .toast.show {
+      display: block;
+    }
+
+    .size-controls {
+      display: flex;
+      gap: 10px;
+      align-items: center;
+      margin-bottom: 10px;
+    }
+
+    input[type="number"] {
+      width: 50px;
+      padding: 4px;
+      font-family: monospace;
+      background: #333;
+      color: #fff;
+      border: 1px solid #555;
+    }
+  </style>
+</head>
+<body>
+  <h1>Block Art Builder</h1>
+
+  <div class="label">Palette (click to select, right-click for eraser)</div>
+  <div class="palette" id="palette"></div>
+
+  <div class="size-controls">
+    <span class="label">Grid size:</span>
+    <input type="number" id="cols" value="18" min="4" max="30">
+    <span>x</span>
+    <input type="number" id="rows" value="6" min="2" max="20">
+    <button onclick="resizeGrid()">Resize</button>
+    <button onclick="clearGrid()">Clear</button>
+    <button onclick="loadNeutral()">Load Neutral</button>
+  </div>
+
+  <div class="container">
+    <div class="panel">
+      <div class="label">Canvas (click/drag to paint)</div>
+      <div class="grid" id="grid"></div>
+      <div class="buttons">
+        <button onclick="copyToClipboard()">Copy to Clipboard</button>
+        <button onclick="copyAsArray()">Copy as JS Array</button>
+      </div>
+    </div>
+
+    <div class="panel">
+      <div class="label">Preview (1x)</div>
+      <div class="preview" id="preview"></div>
+
+      <div class="label">Preview (2x)</div>
+      <div class="preview large" id="preview-large"></div>
+    </div>
+  </div>
+
+  <div class="toast" id="toast">Copied!</div>
+
+<script>
+const blocks = ['█', '▀', '▄', '▌', '▐', '▛', '▜', '▙', '▟', '▘', '▝', '▖', '▗', ' '];
+let selectedBlock = '█';
+let isDrawing = false;
+let gridData = [];
+let cols = 18;
+let rows = 6;
+
+// Init palette
+const palette = document.getElementById('palette');
+blocks.forEach(block => {
+  const item = document.createElement('div');
+  item.className = 'palette-item' + (block === selectedBlock ? ' selected' : '');
+  item.textContent = block === ' ' ? '·' : block;
+  item.dataset.block = block;
+  item.onclick = () => selectBlock(block);
+  palette.appendChild(item);
+});
+
+function selectBlock(block) {
+  selectedBlock = block;
+  document.querySelectorAll('.palette-item').forEach(item => {
+    item.classList.toggle('selected', item.dataset.block === block);
+  });
+}
+
+// Grid
+function createGrid() {
+  const grid = document.getElementById('grid');
+  grid.innerHTML = '';
+  grid.style.gridTemplateColumns = `repeat(${cols}, 24px)`;
+  gridData = [];
+
+  for (let r = 0; r < rows; r++) {
+    gridData[r] = [];
+    for (let c = 0; c < cols; c++) {
+      gridData[r][c] = ' ';
+      const cell = document.createElement('div');
+      cell.className = 'cell';
+      cell.dataset.row = r;
+      cell.dataset.col = c;
+      cell.onmousedown = (e) => { isDrawing = true; paint(e, cell); };
+      cell.onmouseenter = (e) => { if (isDrawing) paint(e, cell); };
+      cell.oncontextmenu = (e) => e.preventDefault();
+      grid.appendChild(cell);
+    }
+  }
+  updatePreview();
+}
+
+document.addEventListener('mouseup', () => isDrawing = false);
+
+function paint(e, cell) {
+  const r = parseInt(cell.dataset.row);
+  const c = parseInt(cell.dataset.col);
+  const block = e.buttons === 2 ? ' ' : selectedBlock;
+  gridData[r][c] = block;
+  cell.textContent = block;
+  updatePreview();
+}
+
+function updatePreview() {
+  const text = gridData.map(row => row.join('')).join('\n');
+  document.getElementById('preview').textContent = text;
+  document.getElementById('preview-large').textContent = text;
+}
+
+function resizeGrid() {
+  cols = parseInt(document.getElementById('cols').value);
+  rows = parseInt(document.getElementById('rows').value);
+  createGrid();
+}
+
+function clearGrid() {
+  createGrid();
+}
+
+function loadNeutral() {
+  const neutral = [
+    '  ████████',
+    '  █▌▐██▌▐█',
+    '  ████████████',
+    '  ████████',
+    '  ▐▐  ▌▌'
+  ];
+
+  // Resize grid to fit
+  cols = 18;
+  rows = 6;
+  document.getElementById('cols').value = cols;
+  document.getElementById('rows').value = rows;
+  createGrid();
+
+  // Load the pattern
+  for (let r = 0; r < neutral.length && r < rows; r++) {
+    for (let c = 0; c < neutral[r].length && c < cols; c++) {
+      gridData[r][c] = neutral[r][c];
+    }
+  }
+
+  // Update display
+  const cells = document.querySelectorAll('.cell');
+  cells.forEach(cell => {
+    const r = parseInt(cell.dataset.row);
+    const c = parseInt(cell.dataset.col);
+    cell.textContent = gridData[r][c];
+  });
+
+  updatePreview();
+}
+
+function copyToClipboard() {
+  const text = gridData.map(row => {
+    // Trim trailing spaces but keep internal structure
+    return row.join('').replace(/\s+$/, '');
+  }).join('\n');
+  navigator.clipboard.writeText(text);
+  showToast();
+}
+
+function copyAsArray() {
+  const lines = gridData.map(row => {
+    const line = row.join('').replace(/\s+$/, '');
+    return `        '${line}'`;
+  });
+  const text = `art: [\n${lines.join(',\n')}\n      ]`;
+  navigator.clipboard.writeText(text);
+  showToast();
+}
+
+function showToast() {
+  const toast = document.getElementById('toast');
+  toast.classList.add('show');
+  setTimeout(() => toast.classList.remove('show'), 1500);
+}
+
+// Init
+createGrid();
+</script>
+</body>
+</html>

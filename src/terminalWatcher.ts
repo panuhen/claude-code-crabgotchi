@@ -212,8 +212,26 @@ export class TerminalWatcher {
 
     let claudeBase: string;
 
-    if (customPath && fs.existsSync(customPath)) {
-      claudeBase = customPath;
+    console.log('Crabgotchi: Custom path setting:', customPath);
+
+    // Default to native path
+    claudeBase = path.join(os.homedir(), '.claude', 'projects');
+
+    if (customPath) {
+      // Normalize path - try both backslash and forward slash versions
+      const normalizedPath = customPath.replace(/\\/g, '/');
+      const pathsToTry = [customPath, normalizedPath];
+
+      for (const tryPath of pathsToTry) {
+        try {
+          fs.accessSync(tryPath, fs.constants.R_OK);
+          claudeBase = tryPath;
+          console.log('Crabgotchi: Using custom path:', claudeBase);
+          break;
+        } catch (e) {
+          console.log('Crabgotchi: Path not accessible:', tryPath, e);
+        }
+      }
     } else {
       // Claude Code stores logs in ~/.claude/projects/{sanitized-workspace-path}/
       // First try native path
@@ -221,11 +239,15 @@ export class TerminalWatcher {
 
       // On Windows, also check WSL paths if native path doesn't exist
       if (!fs.existsSync(claudeBase) && process.platform === 'win32') {
+        console.log('Crabgotchi: Native path not found, trying WSL...');
         claudeBase = this.findWslClaudePath() || claudeBase;
       }
     }
 
+    console.log('Crabgotchi: Final claudeBase:', claudeBase);
+
     if (!fs.existsSync(claudeBase)) {
+      console.log('Crabgotchi: claudeBase does not exist');
       return null;
     }
 
@@ -285,9 +307,11 @@ export class TerminalWatcher {
     this.claudeProjectDir = this.getClaudeProjectDir();
 
     if (!this.claudeProjectDir) {
-      console.log('Claude log directory not found, using fallback triggers');
+      console.log('Crabgotchi: Claude log directory not found, using fallback triggers');
       return;
     }
+
+    console.log('Crabgotchi: Watching directory:', this.claudeProjectDir);
 
     // Initialize file sizes to current sizes (don't process old content on reload)
     this.initializeFileSizes(this.claudeProjectDir);
@@ -336,19 +360,26 @@ export class TerminalWatcher {
   }
 
   private scanDirectory(dir: string): void {
-    if (!fs.existsSync(dir)) return;
-
-    const entries = fs.readdirSync(dir, { withFileTypes: true });
-
-    for (const entry of entries) {
-      const fullPath = path.join(dir, entry.name);
-
-      if (entry.isDirectory()) {
-        // Recurse into subdirectories (for subagents/)
-        this.scanDirectory(fullPath);
-      } else if (entry.isFile() && entry.name.endsWith('.jsonl')) {
-        this.checkFileForChanges(fullPath);
+    try {
+      if (!fs.existsSync(dir)) {
+        console.log('Crabgotchi: Directory does not exist:', dir);
+        return;
       }
+
+      const entries = fs.readdirSync(dir, { withFileTypes: true });
+
+      for (const entry of entries) {
+        const fullPath = path.join(dir, entry.name);
+
+        if (entry.isDirectory()) {
+          // Recurse into subdirectories (for subagents/)
+          this.scanDirectory(fullPath);
+        } else if (entry.isFile() && entry.name.endsWith('.jsonl')) {
+          this.checkFileForChanges(fullPath);
+        }
+      }
+    } catch (e) {
+      console.log('Crabgotchi: Error scanning directory:', dir, e);
     }
   }
 
@@ -358,6 +389,7 @@ export class TerminalWatcher {
       const lastSize = this.fileSizes.get(filePath) || 0;
 
       if (stats.size > lastSize) {
+        console.log('Crabgotchi: New content in', filePath, '- reading', stats.size - lastSize, 'bytes');
         // New content was added, read only the new part
         const fd = fs.openSync(filePath, 'r');
         const buffer = Buffer.alloc(stats.size - lastSize);
@@ -368,8 +400,8 @@ export class TerminalWatcher {
         this.processLogContent(newContent);
         this.fileSizes.set(filePath, stats.size);
       }
-    } catch {
-      // File might be locked or deleted - ignore
+    } catch (e) {
+      console.log('Crabgotchi: Error checking file:', filePath, e);
     }
   }
 

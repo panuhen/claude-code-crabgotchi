@@ -73,7 +73,7 @@ Automatic night mode between 11 PM - 5 AM with stars and moon.
 ### From Source
 
 ```bash
-git clone https://github.com/yourusername/claude-code-crabgotchi.git
+git clone https://github.com/panuhen/claude-code-crabgotchi.git
 cd claude-code-crabgotchi
 npm install
 npm run compile

@@ -2,6 +2,13 @@
 
 All notable changes to Claude Code Crabgotchi will be documented in this file.
 
+## [0.1.1] - 2025-01-21
+
+### Added
+
+- Windows WSL support: Auto-detects Claude logs in WSL filesystem
+- Works out of the box for Windows users running Claude CLI in WSL
+
 ## [0.1.0] - 2025-01-21
 
 ### Added

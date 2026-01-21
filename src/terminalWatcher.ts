@@ -207,7 +207,13 @@ export class TerminalWatcher {
 
   private getClaudeProjectDir(): string | null {
     // Claude Code stores logs in ~/.claude/projects/{sanitized-workspace-path}/
-    const claudeBase = path.join(os.homedir(), '.claude', 'projects');
+    // First try native path
+    let claudeBase = path.join(os.homedir(), '.claude', 'projects');
+
+    // On Windows, also check WSL paths if native path doesn't exist
+    if (!fs.existsSync(claudeBase) && process.platform === 'win32') {
+      claudeBase = this.findWslClaudePath() || claudeBase;
+    }
 
     if (!fs.existsSync(claudeBase)) {
       return null;
@@ -218,7 +224,7 @@ export class TerminalWatcher {
     if (workspaceFolders && workspaceFolders.length > 0) {
       // Claude sanitizes paths: /home/user/project -> -home-user-project
       const workspacePath = workspaceFolders[0].uri.fsPath;
-      const sanitizedPath = workspacePath.replace(/\//g, '-');
+      const sanitizedPath = workspacePath.replace(/\//g, '-').replace(/\\/g, '-');
       const projectDir = path.join(claudeBase, sanitizedPath);
 
       if (fs.existsSync(projectDir)) {
@@ -228,6 +234,33 @@ export class TerminalWatcher {
 
     // Fallback: watch the entire projects directory
     return claudeBase;
+  }
+
+  private findWslClaudePath(): string | null {
+    // Common WSL distro names
+    const distros = ['Ubuntu', 'Ubuntu-24.04', 'Ubuntu-22.04', 'Ubuntu-20.04', 'Debian', 'kali-linux'];
+    const wslRoots = ['\\\\wsl$', '\\\\wsl.localhost'];
+
+    for (const wslRoot of wslRoots) {
+      for (const distro of distros) {
+        try {
+          const homePath = path.join(wslRoot, distro, 'home');
+          if (!fs.existsSync(homePath)) continue;
+
+          // List users in /home and find one with .claude
+          const users = fs.readdirSync(homePath);
+          for (const user of users) {
+            const claudePath = path.join(homePath, user, '.claude', 'projects');
+            if (fs.existsSync(claudePath)) {
+              return claudePath;
+            }
+          }
+        } catch {
+          // Skip inaccessible paths
+        }
+      }
+    }
+    return null;
   }
 
   private watchClaudeLogFiles(): void {

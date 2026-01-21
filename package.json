@@ -2,7 +2,7 @@
   "name": "claude-code-crabgotchi",
   "displayName": "Claude Code Crabgotchi",
   "description": "A cute ASCII crab companion that reacts to your Claude Code sessions",
-  "version": "0.1.1",
+  "version": "0.1.2",
   "publisher": "panuhen",
   "license": "MIT",
   "repository": {
@@ -113,6 +113,11 @@
           "minimum": 1,
           "maximum": 120,
           "description": "Break timer duration in minutes (Pomodoro default: 25)"
+        },
+        "crabgotchi.claudeLogsPath": {
+          "type": "string",
+          "default": "",
+          "description": "Custom path to Claude logs folder (e.g., \\\\wsl$\\Ubuntu\\home\\username\\.claude\\projects). Leave empty for auto-detection."
         }
       }
     }

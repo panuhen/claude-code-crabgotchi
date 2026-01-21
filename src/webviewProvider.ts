@@ -160,9 +160,9 @@ export class CrabWebviewProvider implements vscode.WebviewViewProvider {
     }
 
     body {
-      font-family: 'Courier New', monospace;
-      background: var(--vscode-sideBar-background);
-      color: var(--vscode-sideBar-foreground);
+      font-family: 'Cascadia Mono', 'Consolas', 'Courier New', monospace;
+      background: var(--vscode-sideBar-background, #1e1e1e);
+      color: var(--vscode-sideBar-foreground, #ccc);
       padding: 8px;
       display: flex;
       flex-direction: column;
@@ -231,11 +231,17 @@ export class CrabWebviewProvider implements vscode.WebviewViewProvider {
     .stat {
       margin: 2px 0;
       font-size: 11px;
+      color: var(--vscode-foreground, #ccc);
     }
 
     .stat-name {
       display: inline-block;
       width: 50px;
+      color: var(--vscode-descriptionForeground, #aaa);
+    }
+
+    .stat-bar {
+      color: var(--vscode-foreground, #ccc);
     }
 
     .stat-bar.good {

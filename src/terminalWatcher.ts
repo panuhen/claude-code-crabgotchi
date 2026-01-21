@@ -206,13 +206,23 @@ export class TerminalWatcher {
   }
 
   private getClaudeProjectDir(): string | null {
-    // Claude Code stores logs in ~/.claude/projects/{sanitized-workspace-path}/
-    // First try native path
-    let claudeBase = path.join(os.homedir(), '.claude', 'projects');
+    // Check for custom path setting first
+    const config = vscode.workspace.getConfiguration('crabgotchi');
+    const customPath = config.get<string>('claudeLogsPath', '');
 
-    // On Windows, also check WSL paths if native path doesn't exist
-    if (!fs.existsSync(claudeBase) && process.platform === 'win32') {
-      claudeBase = this.findWslClaudePath() || claudeBase;
+    let claudeBase: string;
+
+    if (customPath && fs.existsSync(customPath)) {
+      claudeBase = customPath;
+    } else {
+      // Claude Code stores logs in ~/.claude/projects/{sanitized-workspace-path}/
+      // First try native path
+      claudeBase = path.join(os.homedir(), '.claude', 'projects');
+
+      // On Windows, also check WSL paths if native path doesn't exist
+      if (!fs.existsSync(claudeBase) && process.platform === 'win32') {
+        claudeBase = this.findWslClaudePath() || claudeBase;
+      }
     }
 
     if (!fs.existsSync(claudeBase)) {
@@ -237,28 +247,36 @@ export class TerminalWatcher {
   }
 
   private findWslClaudePath(): string | null {
-    // Common WSL distro names
-    const distros = ['Ubuntu', 'Ubuntu-24.04', 'Ubuntu-22.04', 'Ubuntu-20.04', 'Debian', 'kali-linux'];
-    const wslRoots = ['\\\\wsl$', '\\\\wsl.localhost'];
+    try {
+      // Get list of installed WSL distros
+      const { execSync } = require('child_process');
+      const distroOutput = execSync('wsl -l -q', { encoding: 'utf16le', timeout: 5000 }).trim();
+      const distros = distroOutput.split('\n').map((d: string) => d.trim()).filter((d: string) => d.length > 0);
 
-    for (const wslRoot of wslRoots) {
-      for (const distro of distros) {
-        try {
-          const homePath = path.join(wslRoot, distro, 'home');
-          if (!fs.existsSync(homePath)) continue;
+      const wslRoots = ['\\\\wsl.localhost', '\\\\wsl$'];
 
-          // List users in /home and find one with .claude
-          const users = fs.readdirSync(homePath);
-          for (const user of users) {
-            const claudePath = path.join(homePath, user, '.claude', 'projects');
-            if (fs.existsSync(claudePath)) {
-              return claudePath;
+      for (const wslRoot of wslRoots) {
+        for (const distro of distros) {
+          try {
+            const homePath = path.join(wslRoot, distro, 'home');
+            if (!fs.existsSync(homePath)) continue;
+
+            // List users in /home and find one with .claude
+            const users = fs.readdirSync(homePath);
+            for (const user of users) {
+              const claudePath = path.join(homePath, user, '.claude', 'projects');
+              if (fs.existsSync(claudePath)) {
+                console.log('Found Claude logs in WSL:', claudePath);
+                return claudePath;
+              }
             }
+          } catch {
+            // Skip inaccessible paths
           }
-        } catch {
-          // Skip inaccessible paths
         }
       }
+    } catch {
+      // WSL not available or command failed
     }
     return null;
   }

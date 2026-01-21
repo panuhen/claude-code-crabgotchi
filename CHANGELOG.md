@@ -2,6 +2,18 @@
 
 All notable changes to Claude Code Crabgotchi will be documented in this file.
 
+## [0.1.2] - 2025-01-21
+
+### Added
+
+- Custom Claude logs path setting for manual configuration
+- Better Windows font support (Cascadia Mono, Consolas)
+
+### Fixed
+
+- Stats text color on Windows/light themes (was showing black)
+- Added fallback colors for all VS Code theme variables
+
 ## [0.1.1] - 2025-01-21
 
 ### Added

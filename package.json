@@ -3,6 +3,26 @@
   "displayName": "Claude Code Crabgotchi",
   "description": "A cute ASCII crab companion that reacts to your Claude Code sessions",
   "version": "0.1.0",
+  "publisher": "panuhen",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/panuhen/claude-code-crabgotchi"
+  },
+  "bugs": {
+    "url": "https://github.com/panuhen/claude-code-crabgotchi/issues"
+  },
+  "icon": "media/icon.png",
+  "keywords": [
+    "claude",
+    "claude-code",
+    "tamagotchi",
+    "crab",
+    "pet",
+    "companion",
+    "ascii",
+    "sidebar"
+  ],
   "engines": {
     "vscode": "^1.85.0"
   },

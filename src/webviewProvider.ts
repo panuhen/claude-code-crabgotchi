@@ -478,6 +478,52 @@ export class CrabWebviewProvider implements vscode.WebviewViewProvider {
         transform: translateY(-80px) scale(0.5);
       }
     }
+
+    /* Feed nom animation */
+    .nom {
+      position: fixed;
+      font-size: 12px;
+      font-weight: bold;
+      pointer-events: none;
+      animation: nomBounce 1s ease-out forwards;
+      z-index: 100;
+    }
+
+    .particle {
+      position: fixed;
+      width: 4px;
+      height: 4px;
+      border-radius: 50%;
+      pointer-events: none;
+      animation: particleFade 0.8s ease-out forwards;
+      z-index: 99;
+    }
+
+    @keyframes nomBounce {
+      0% {
+        opacity: 1;
+        transform: translateY(0) scale(0.5);
+      }
+      50% {
+        opacity: 1;
+        transform: translateY(-20px) scale(1.2);
+      }
+      100% {
+        opacity: 0;
+        transform: translateY(-40px) scale(0.8);
+      }
+    }
+
+    @keyframes particleFade {
+      0% {
+        opacity: 1;
+        transform: translate(0, 0) scale(1);
+      }
+      100% {
+        opacity: 0;
+        transform: translate(var(--tx), var(--ty)) scale(0);
+      }
+    }
   </style>
 </head>
 <body>
@@ -576,6 +622,7 @@ export class CrabWebviewProvider implements vscode.WebviewViewProvider {
 
     document.getElementById('feed-btn').addEventListener('click', () => {
       vscode.postMessage({ command: 'feed' });
+      spawnNoms();
     });
 
     document.getElementById('pet-btn').addEventListener('click', () => {
@@ -600,6 +647,47 @@ export class CrabWebviewProvider implements vscode.WebviewViewProvider {
 
           setTimeout(() => heart.remove(), 1500);
         }, i * 80);
+      }
+    }
+
+    function spawnNoms() {
+      const noms = ['nom', 'nom!', 'NOM', 'yum', '*munch*'];
+      const crabRect = document.querySelector('.crab-container').getBoundingClientRect();
+      const centerX = crabRect.left + crabRect.width / 2;
+      const centerY = crabRect.top + crabRect.height / 2;
+
+      // Spawn nom texts
+      for (let i = 0; i < 2; i++) {
+        setTimeout(() => {
+          const nom = document.createElement('div');
+          nom.className = 'nom';
+          nom.textContent = noms[Math.floor(Math.random() * noms.length)];
+          nom.style.left = (centerX - 20 + Math.random() * 40) + 'px';
+          nom.style.top = (centerY - 10 + Math.random() * 20) + 'px';
+          nom.style.color = ['#98c379', '#e5c07b', '#61afef'][Math.floor(Math.random() * 3)];
+          document.body.appendChild(nom);
+
+          setTimeout(() => nom.remove(), 1000);
+        }, i * 200);
+      }
+
+      // Spawn particles
+      for (let i = 0; i < 8; i++) {
+        setTimeout(() => {
+          const particle = document.createElement('div');
+          particle.className = 'particle';
+          particle.style.left = (centerX - 20 + Math.random() * 40) + 'px';
+          particle.style.top = (centerY + Math.random() * 20) + 'px';
+          particle.style.background = ['#98c379', '#e5c07b', '#56b6c2', '#e06c75'][Math.floor(Math.random() * 4)];
+          // Random direction for particle
+          const angle = Math.random() * Math.PI * 2;
+          const distance = 20 + Math.random() * 30;
+          particle.style.setProperty('--tx', Math.cos(angle) * distance + 'px');
+          particle.style.setProperty('--ty', Math.sin(angle) * distance + 'px');
+          document.body.appendChild(particle);
+
+          setTimeout(() => particle.remove(), 800);
+        }, i * 50);
       }
     }
 

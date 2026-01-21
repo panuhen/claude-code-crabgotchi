@@ -141,9 +141,15 @@ export class TerminalWatcher {
       handler: (m) => m.onSurprise(),
       cooldown: 10000
     },
+    // Compacting - crab hides in shell
+    {
+      pattern: /compacting|summariz/i,
+      handler: (m) => m.onShell(),
+      cooldown: 30000
+    },
     // Long session indicator
     {
-      pattern: /context|tokens|summariz|compacting/i,
+      pattern: /context|tokens/i,
       handler: (m) => m.onLongSession(),
       cooldown: 30000
     }
@@ -238,6 +244,9 @@ export class TerminalWatcher {
       return;
     }
 
+    // Initialize file sizes to current sizes (don't process old content on reload)
+    this.initializeFileSizes(this.claudeProjectDir);
+
     // Use polling for cross-platform reliability (fs.watch recursive is unreliable on Linux)
     this.pollTimer = setInterval(() => {
       this.pollLogFiles();
@@ -249,6 +258,26 @@ export class TerminalWatcher {
         this.claudeProjectDir = this.getClaudeProjectDir();
       })
     );
+  }
+
+  private initializeFileSizes(dir: string): void {
+    // Set current file sizes so we only process NEW content after reload
+    if (!fs.existsSync(dir)) return;
+
+    try {
+      const entries = fs.readdirSync(dir, { withFileTypes: true });
+      for (const entry of entries) {
+        const fullPath = path.join(dir, entry.name);
+        if (entry.isDirectory()) {
+          this.initializeFileSizes(fullPath);
+        } else if (entry.isFile() && entry.name.endsWith('.jsonl')) {
+          const stats = fs.statSync(fullPath);
+          this.fileSizes.set(fullPath, stats.size);
+        }
+      }
+    } catch {
+      // Ignore errors during initialization
+    }
   }
 
   private pollLogFiles(): void {
@@ -302,7 +331,7 @@ export class TerminalWatcher {
   private processLogContent(content: string): void {
     const now = Date.now();
 
-    // Drain energy on any Claude tool activity
+    // Drain energy on Claude tool activity
     if (/"type"\s*:\s*"tool_use"/.test(content)) {
       this.stateManager.onActivity();
     }

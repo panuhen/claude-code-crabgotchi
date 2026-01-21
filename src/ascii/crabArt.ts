@@ -10,7 +10,8 @@ export type Emotion =
   | 'angry'
   | 'surprised'
   | 'lovestruck'
-  | 'claudeFan';
+  | 'claudeFan'
+  | 'shell';
 
 export interface CrabFrame {
   art: string[];  // Changed to array of lines for individual centering
@@ -313,6 +314,29 @@ export const crabFrames: Record<Emotion, CrabFrame[]> = {
       ],
       bubble: '♡'
     }
+  ],
+
+  shell: [
+    {
+      art: [
+        '',
+        '  ████████',
+        '  ████████████',
+        '  ████████',
+        ''
+      ],
+      bubble: 'zzz'
+    },
+    {
+      art: [
+        '',
+        '  ████████',
+        '  ████████████',
+        '  ████████',
+        ''
+      ],
+      bubble: '...'
+    }
   ]
 };
 
@@ -332,5 +356,6 @@ export const emotionLabels: Record<Emotion, string> = {
   angry: 'Frustrated!',
   surprised: 'WHOAH!',
   lovestruck: 'Ferris! ♥',
-  claudeFan: 'Claude! ♥'
+  claudeFan: 'Claude! ♥',
+  shell: '*hiding*'
 };

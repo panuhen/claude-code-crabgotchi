@@ -3,11 +3,11 @@
 A cute ASCII crab companion that lives in your VS Code sidebar and reacts to your Claude Code sessions.
 
 ```
-  ████████
-  █▌▐██▌▐█
+    ████████
+    █▌▐██▌▐█
   ████████████
-  ████████
-  ▐▐  ▌▌
+    ████████
+     ▐▐  ▌▌
 ```
 
 ## Features

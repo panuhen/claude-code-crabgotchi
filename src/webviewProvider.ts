@@ -850,8 +850,8 @@ export class CrabWebviewProvider implements vscode.WebviewViewProvider {
           .map(line => {
             // Make puppy eyes white only when lovestruck
             if (isLovestruck) {
-              // Match the eye pattern: █▄ ██ ▄█
-              line = line.replace(/█▄ ██ ▄█/g, '█<span class="white-eyes">▄</span> ██ <span class="white-eyes">▄</span>█');
+              // Match the eye pattern: █▀ ██▀ █
+              line = line.replace(/█▀ ██▀ █/g, '█<span class="white-eyes">▀</span> ██<span class="white-eyes">▀</span> █');
             }
             return '<div class="crab-line">' + line + '</div>';
           })

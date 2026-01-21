@@ -217,11 +217,6 @@ export class CrabStateManager {
     }
   }
 
-  public onShell(): void {
-    // Crab retreats into shell during compacting
-    this.setEmotion('shell', 15000);
-  }
-
   // Random value between min and max (inclusive)
   private randomRange(min: number, max: number): number {
     return Math.floor(Math.random() * (max - min + 1)) + min;

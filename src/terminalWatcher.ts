@@ -141,12 +141,6 @@ export class TerminalWatcher {
       handler: (m) => m.onSurprise(),
       cooldown: 10000
     },
-    // Compacting - crab hides in shell
-    {
-      pattern: /compacting|summariz/i,
-      handler: (m) => m.onShell(),
-      cooldown: 30000
-    },
     // Long session indicator
     {
       pattern: /context|tokens/i,

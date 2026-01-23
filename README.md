@@ -31,13 +31,20 @@ Your crab watches Claude Code activity and reacts in real-time:
 
 ### Tamagotchi Stats
 
-Your crab has three stats that change over time:
+Your crab has four stats that change over time:
 
-- **Food** - Decreases over time, increases with successful tasks
-- **Happiness** - Affected by successes (up) and errors (down)
-- **Energy** - Depletes during long sessions, recovers when VS Code is closed
+- **Food** - Decreases over time, feed your crab to keep it happy
+- **Happiness** - Affected by successes (up) and errors (down), capped by hygiene and energy
+- **Energy** - Depletes during Claude activity, recovers during inactivity
+- **Hygiene** - Decreases when crab poops (from overfeeding), clean up to restore
 
 If stats get too low, your crab will let you know!
+
+### Wellbeing Tracking
+
+- **Sparklines** - ASCII graphs showing 24-hour and 7-day wellbeing trends
+- **Crab Age** - Track how long your crab has been with you (days/weeks/months/years)
+- **Wellbeing Score** - Hover over sparklines to see current wellbeing percentage
 
 ### Interactive Buttons
 
@@ -102,6 +109,7 @@ Access settings via the gear icon in the Crabgotchi panel:
 | `crabgotchi.bubbleColor` | Speech bubble color | Amber (#e5c07b) |
 | `crabgotchi.breakTimer.enabled` | Enable break timer | false |
 | `crabgotchi.breakTimer.minutes` | Timer duration in minutes | 25 |
+| `crabgotchi.showStats` | Show wellbeing sparklines | true |
 
 ## Requirements
 

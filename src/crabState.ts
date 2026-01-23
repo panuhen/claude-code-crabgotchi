@@ -36,13 +36,24 @@ const ACTIVITY_ENERGY_DRAIN = 1; // Energy drain per Claude activity
 const POOP_HYGIENE_PENALTY = 15; // Hygiene drop per poop
 const LOW_HYGIENE_THRESHOLD = 50; // Below this, happiness drains faster
 
-// Happiness cap based on hygiene (can't be truly happy when dirty)
-function getMaxHappiness(hygiene: number): number {
-  if (hygiene >= 80) return 100;
-  if (hygiene >= 60) return 80;
-  if (hygiene >= 40) return 60;
-  if (hygiene >= 20) return 50;
-  return 30;
+// Happiness cap based on hygiene and energy (can't be truly happy when dirty or exhausted)
+function getMaxHappiness(hygiene: number, energy: number): number {
+  // Base cap from hygiene
+  let max: number;
+  if (hygiene >= 80) max = 100;
+  else if (hygiene >= 60) max = 80;
+  else if (hygiene >= 40) max = 60;
+  else if (hygiene >= 20) max = 50;
+  else max = 30;
+
+  // Energy penalty: exhausted crab can't be fully happy
+  if (energy === 0) {
+    max = Math.min(max, 80); // Zero energy: cap at 80
+  } else if (energy < 20) {
+    max = Math.min(max, 90); // Low energy: cap at 90
+  }
+
+  return max;
 }
 const POOP_TIMER_MIN = 45 * 60 * 1000; // 45 minutes minimum
 const POOP_TIMER_MAX = 60 * 60 * 1000; // 60 minutes maximum
@@ -280,7 +291,6 @@ export class CrabStateManager {
     // Extra happiness drain when hygiene is low
     const hygieneBonus = this.state.stats.hygiene < LOW_HYGIENE_THRESHOLD ? 1 : 0;
     this.state.stats.happiness = Math.max(0, this.state.stats.happiness - HAPPINESS_DECAY_RATE - hygieneBonus);
-    this.capHappiness(); // Can't be too happy when dirty
 
     // Recover energy while sleeping, drain while active
     if (isSleeping) {
@@ -288,6 +298,7 @@ export class CrabStateManager {
     } else {
       this.state.stats.energy = Math.max(0, this.state.stats.energy - ENERGY_DECAY_RATE);
     }
+    this.capHappiness(); // Cap based on hygiene and energy
     this.state.stats.lastInteraction = Date.now();
 
     // Force emotions based on low stats
@@ -356,11 +367,13 @@ export class CrabStateManager {
   // Called when Claude is actively working (tool calls, etc.)
   public onActivity(): void {
     this.state.stats.energy = Math.max(0, this.state.stats.energy - ACTIVITY_ENERGY_DRAIN);
+    this.capHappiness(); // Low energy caps happiness
   }
 
   // Called based on output token usage (drain = tokens / 3000, capped at 6)
   public onTokenUsage(drain: number): void {
     this.state.stats.energy = Math.max(0, this.state.stats.energy - drain);
+    this.capHappiness(); // Low energy caps happiness
     this.saveState();
     this.notifyChange();
   }
@@ -433,9 +446,9 @@ export class CrabStateManager {
     return Math.floor(Math.random() * (max - min + 1)) + min;
   }
 
-  // Cap happiness based on current hygiene level
+  // Cap happiness based on current hygiene and energy levels
   private capHappiness(): void {
-    const maxHappiness = getMaxHappiness(this.state.stats.hygiene);
+    const maxHappiness = getMaxHappiness(this.state.stats.hygiene, this.state.stats.energy);
     this.state.stats.happiness = Math.min(this.state.stats.happiness, maxHappiness);
   }
 

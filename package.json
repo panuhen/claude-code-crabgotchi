@@ -2,7 +2,7 @@
   "name": "claude-code-crabgotchi",
   "displayName": "Claude Code Crabgotchi",
   "description": "A cute ASCII crab companion that reacts to your Claude Code sessions",
-  "version": "0.1.4",
+  "version": "0.1.5",
   "publisher": "panuhen",
   "license": "MIT",
   "repository": {

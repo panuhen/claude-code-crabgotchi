@@ -410,7 +410,21 @@ export class CrabWebviewProvider implements vscode.WebviewViewProvider {
       opacity: 0.4;
     }
 
+    .sparkline-container {
+      position: relative;
+      display: inline-block;
+    }
+
+    .sparkline-bg {
+      color: #61afef;
+      letter-spacing: -1px;
+      opacity: 0.15;
+    }
+
     .sparkline {
+      position: absolute;
+      left: 0;
+      top: 0;
       color: #61afef;
       letter-spacing: -1px;
     }
@@ -806,9 +820,9 @@ export class CrabWebviewProvider implements vscode.WebviewViewProvider {
     <span class="settings-toggle" id="settings-toggle">&#9881; Settings</span>
   </div>
   <div class="sparklines" id="sparklines" title="Wellbeing: 50%"${showStats ? '' : ' style="display:none"'}>
-    <span class="sparkline-label">24h</span><span id="sparkline-24h" class="sparkline">▄▄▄▄▄▄▄▄</span>
+    <span class="sparkline-label">24h</span><span class="sparkline-container"><span class="sparkline-bg">████████</span><span id="sparkline-24h" class="sparkline">▄▄▄▄▄▄▄▄</span></span>
     <span class="sparkline-divider">|</span>
-    <span class="sparkline-label">7d</span><span id="sparkline-7d" class="sparkline">▄▄▄▄▄▄▄▄</span>
+    <span class="sparkline-label">7d</span><span class="sparkline-container"><span class="sparkline-bg">████████</span><span id="sparkline-7d" class="sparkline">▄▄▄▄▄▄▄▄</span></span>
   </div>
   <div class="settings-content" id="settings-content">
     <div class="timer-settings-row">

@@ -354,10 +354,10 @@ export class CrabStateManager {
   }
 
   // Event handlers for different triggers
-  public onSuccess(): void {
+  public onSuccess(resetActivity: boolean = true): void {
     this.state.stats.happiness = Math.min(100, this.state.stats.happiness + 5);
     this.capHappiness();
-    this.setEmotion('happy');
+    this.setEmotion('happy', EMOTION_DURATION, resetActivity);
   }
 
   public onMultipleSuccesses(): void {
@@ -380,9 +380,9 @@ export class CrabStateManager {
     this.notifyChange();
   }
 
-  public onError(): void {
+  public onError(resetActivity: boolean = true): void {
     this.state.stats.happiness = Math.max(0, this.state.stats.happiness - 10);
-    this.setEmotion('sad');
+    this.setEmotion('sad', EMOTION_DURATION, resetActivity);
   }
 
   public onRepeatedErrors(): void {
@@ -390,8 +390,8 @@ export class CrabStateManager {
     this.setEmotion('angry', 8000);
   }
 
-  public onThinking(): void {
-    this.setEmotion('thinking', 10000);
+  public onThinking(resetActivity: boolean = true): void {
+    this.setEmotion('thinking', 10000, resetActivity);
   }
 
   public onQuestion(): void {

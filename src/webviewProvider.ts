@@ -213,6 +213,7 @@ export class CrabWebviewProvider implements vscode.WebviewViewProvider {
         -1px 1px 0 #000,
         1px 1px 0 #000;
       animation: float 1s ease-in-out infinite;
+      z-index: 20;
     }
 
     @keyframes float {
@@ -299,6 +300,9 @@ export class CrabWebviewProvider implements vscode.WebviewViewProvider {
       max-width: 200px;
       margin-top: 8px;
       font-family: monospace;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
     }
 
     .stat {

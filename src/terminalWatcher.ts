@@ -202,19 +202,19 @@ export class TerminalWatcher {
   }
 
   public start(): void {
-    // Watch terminal state changes
+    // Watch terminal state changes (don't reset activity - this is VS Code UI, not Claude)
     this.disposables.push(
       vscode.window.onDidChangeActiveTerminal(() => {
         // Terminal activity - show thinking
-        this.stateManager.onThinking();
+        this.stateManager.onThinking(false);
       })
     );
 
-    // Watch for tasks completing
+    // Watch for tasks completing - don't reset activity, these are VS Code tasks not Claude
     this.disposables.push(
       vscode.tasks.onDidEndTask((e) => {
         if (e.execution.task.execution) {
-          this.stateManager.onSuccess();
+          this.stateManager.onSuccess(false);
         }
       })
     );
@@ -222,30 +222,30 @@ export class TerminalWatcher {
     this.disposables.push(
       vscode.tasks.onDidEndTaskProcess((e) => {
         if (e.exitCode === 0) {
-          this.stateManager.onSuccess();
+          this.stateManager.onSuccess(false);
         } else if (e.exitCode !== undefined) {
-          this.stateManager.onError();
+          this.stateManager.onError(false);
         }
       })
     );
 
-    // Watch for diagnostics (errors/warnings)
+    // Watch for diagnostics (errors/warnings) - don't reset activity, this is background VS Code
     this.disposables.push(
       vscode.languages.onDidChangeDiagnostics((e) => {
         for (const uri of e.uris) {
           const diagnostics = vscode.languages.getDiagnostics(uri);
           const errors = diagnostics.filter(d => d.severity === vscode.DiagnosticSeverity.Error);
           if (errors.length > 0) {
-            this.stateManager.onError();
+            this.stateManager.onError(false);
           }
         }
       })
     );
 
-    // Watch for document saves (success indicator)
+    // Watch for document saves - don't reset activity, user may save without Claude
     this.disposables.push(
       vscode.workspace.onDidSaveTextDocument(() => {
-        this.stateManager.onSuccess();
+        this.stateManager.onSuccess(false);
       })
     );
 

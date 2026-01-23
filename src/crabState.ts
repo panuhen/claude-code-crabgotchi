@@ -301,13 +301,13 @@ export class CrabStateManager {
     this.capHappiness(); // Cap based on hygiene and energy
     this.state.stats.lastInteraction = Date.now();
 
-    // Force emotions based on low stats
+    // Force emotions based on low stats (don't reset activity - these are passive, not user-triggered)
     if (this.state.stats.hunger < 20) {
-      this.setEmotion('hungry');
+      this.setEmotion('hungry', EMOTION_DURATION, false);
     } else if (this.state.stats.energy < 20) {
-      this.setEmotion('tired');
+      this.setEmotion('tired', EMOTION_DURATION, false);
     } else if (this.state.stats.happiness < 20) {
-      this.setEmotion('sad');
+      this.setEmotion('sad', EMOTION_DURATION, false);
     }
 
     this.saveState();
@@ -330,8 +330,10 @@ export class CrabStateManager {
     return 'neutral';
   }
 
-  public setEmotion(emotion: Emotion, duration: number = EMOTION_DURATION): void {
-    this.resetActivity(); // Reset inactivity timer on any emotion change
+  public setEmotion(emotion: Emotion, duration: number = EMOTION_DURATION, resetActivity: boolean = true): void {
+    if (resetActivity) {
+      this.resetActivity(); // Reset inactivity timer on user-triggered emotion changes
+    }
     this.state.emotion = emotion;
     this.state.emotionExpiry = Date.now() + duration;
     this.saveState();

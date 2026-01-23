@@ -2,6 +2,7 @@ import * as vscode from 'vscode';
 import * as fs from 'fs';
 import * as path from 'path';
 import * as os from 'os';
+import { execSync } from 'child_process';
 import { CrabStateManager } from './crabState';
 
 interface PatternMatch {
@@ -39,9 +40,27 @@ export class TerminalWatcher {
       handler: (m) => m.onQuestion(),
       cooldown: 3000
     },
-    // Git success - surprised!
+    // Force push - "USE THE FORCE" easter egg
     {
-      pattern: /git commit|git push|committed|pushed to|pull request|PR created/i,
+      pattern: /"command":\s*"[^"]*git push[^"]*(?:--force|-f)/i,
+      handler: (m) => {
+        const username = this.getUsername();
+        m.onForcePush(username);
+      },
+      cooldown: 5000
+    },
+    // Git commit - "ALL YOUR CODE ARE BELONG TO" easter egg
+    {
+      pattern: /"command":\s*"[^"]*git commit\s+-/i,
+      handler: (m) => {
+        const branch = this.getBranch();
+        m.onCommit(branch);
+      },
+      cooldown: 5000
+    },
+    // Git success (push, PR) - surprised!
+    {
+      pattern: /git push|pushed to|pull request|PR created/i,
       handler: (m) => m.onSurprise(),
       cooldown: 3000
     },
@@ -77,9 +96,14 @@ export class TerminalWatcher {
       pattern: /"is_error"\s*:\s*true|"exitCode"\s*:\s*[1-9]/,
       handler: (m) => {
         this.errorCount++;
-        if (this.errorCount >= 3) {
+        if (this.errorCount >= 5) {
+          // 5+ errors: angry + stress poop!
           m.onRepeatedErrors();
+          m.addPoop();
           this.errorCount = 0;
+        } else if (this.errorCount >= 3) {
+          // 3+ errors: just angry
+          m.onRepeatedErrors();
         } else {
           m.onError();
         }
@@ -141,16 +165,40 @@ export class TerminalWatcher {
       handler: (m) => m.onSurprise(),
       cooldown: 10000
     },
-    // Long session indicator
-    {
-      pattern: /context|tokens/i,
-      handler: (m) => m.onLongSession(),
-      cooldown: 30000
-    }
   ];
 
   constructor(stateManager: CrabStateManager) {
     this.stateManager = stateManager;
+  }
+
+  private getUsername(): string {
+    try {
+      // Try git config first
+      const gitName = execSync('git config user.name', { encoding: 'utf8', timeout: 2000 }).trim();
+      if (gitName) return gitName;
+    } catch {
+      // Git config failed
+    }
+
+    try {
+      // Try GitHub CLI
+      const ghUser = execSync('gh api user --jq .login', { encoding: 'utf8', timeout: 5000 }).trim();
+      if (ghUser) return ghUser;
+    } catch {
+      // gh CLI not available or not authenticated
+    }
+
+    return 'JEDI';
+  }
+
+  private getBranch(): string {
+    try {
+      const branch = execSync('git rev-parse --abbrev-ref HEAD', { encoding: 'utf8', timeout: 2000 }).trim();
+      if (branch) return branch;
+    } catch {
+      // Git command failed
+    }
+    return 'MAIN';
   }
 
   public start(): void {
@@ -411,6 +459,24 @@ export class TerminalWatcher {
     // Drain energy on Claude tool activity
     if (/"type"\s*:\s*"tool_use"/.test(content)) {
       this.stateManager.onActivity();
+    }
+
+    // Token-based energy drain: parse output_tokens from log entries
+    // Drain -1 per 5000 output tokens, capped at -6
+    const lines = content.split('\n').filter(line => line.trim());
+    for (const line of lines) {
+      try {
+        const entry = JSON.parse(line);
+        const outputTokens = entry?.message?.usage?.output_tokens;
+        if (outputTokens && outputTokens > 0) {
+          const drain = Math.min(6, Math.floor(outputTokens / 5000));
+          if (drain > 0) {
+            this.stateManager.onTokenUsage(drain);
+          }
+        }
+      } catch {
+        // Not valid JSON, skip
+      }
     }
 
     for (const { pattern, handler, cooldown } of this.patterns) {

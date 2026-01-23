@@ -5,14 +5,23 @@ export interface CrabStats {
   hunger: number;    // 0-100, decreases over time
   happiness: number; // 0-100, affected by events
   energy: number;    // 0-100, depletes during sessions
+  hygiene: number;   // 0-100, affected by poop
+  poopCount: number; // 0+, increases when overfed
   lastFed: number;   // timestamp
   lastInteraction: number; // timestamp
+}
+
+export interface CrabLifetimeStats {
+  birthDate: number;  // timestamp when crab was created
+  wellbeingHistory: { timestamp: number; score: number }[];  // periodic snapshots
 }
 
 export interface CrabState {
   emotion: Emotion;
   stats: CrabStats;
   emotionExpiry: number; // timestamp when emotion should decay
+  customBubble?: string; // temporary custom bubble text (e.g., easter eggs)
+  easterEggType?: 'force' | 'commit' | 'friday'; // type of easter egg for styling
 }
 
 type StateChangeCallback = (state: CrabState) => void;
@@ -22,22 +31,42 @@ const EMOTION_DURATION = 10000; // 10 seconds before decaying to neutral
 const HUNGER_DECAY_RATE = 2;
 const HAPPINESS_DECAY_RATE = 1;
 const ENERGY_DECAY_RATE = 1;
+const ENERGY_RECOVERY_RATE = 2; // Energy recovery while sleeping
 const ACTIVITY_ENERGY_DRAIN = 1; // Energy drain per Claude activity
+const POOP_HYGIENE_PENALTY = 15; // Hygiene drop per poop
+const LOW_HYGIENE_THRESHOLD = 50; // Below this, happiness drains faster
+
+// Happiness cap based on hygiene (can't be truly happy when dirty)
+function getMaxHappiness(hygiene: number): number {
+  if (hygiene >= 80) return 100;
+  if (hygiene >= 60) return 80;
+  if (hygiene >= 40) return 60;
+  if (hygiene >= 20) return 50;
+  return 30;
+}
+const POOP_TIMER_MIN = 45 * 60 * 1000; // 45 minutes minimum
+const POOP_TIMER_MAX = 60 * 60 * 1000; // 60 minutes maximum
 const INACTIVITY_CHECK_INTERVAL = 5000; // Check every 5 seconds
 const INACTIVITY_THRESHOLD = 300000; // 5 minutes of inactivity → sleepy
 
 export class CrabStateManager {
   private state: CrabState;
+  private lifetimeStats: CrabLifetimeStats;
   private context: vscode.ExtensionContext;
   private decayTimer: NodeJS.Timeout | null = null;
   private inactivityTimer: NodeJS.Timeout | null = null;
+  private poopTimer: NodeJS.Timeout | null = null;
+  private wellbeingTimer: NodeJS.Timeout | null = null;
   private lastActivity: number = Date.now();
   private callbacks: StateChangeCallback[] = [];
 
   constructor(context: vscode.ExtensionContext) {
     this.context = context;
     this.state = this.loadState();
+    this.lifetimeStats = this.loadLifetimeStats();
     this.startDecayTimer();
+    this.scheduleRandomPoop();
+    this.startWellbeingTracker();
   }
 
   private loadState(): CrabState {
@@ -54,6 +83,8 @@ export class CrabStateManager {
           hunger: Math.max(0, saved.stats.hunger - minutesPassed * HUNGER_DECAY_RATE),
           happiness: saved.stats.happiness,
           energy: Math.min(100, saved.stats.energy + Math.floor(minutesPassed / 5)), // Recovers while away
+          hygiene: saved.stats.hygiene ?? 100, // Default to clean if not present
+          poopCount: saved.stats.poopCount ?? 0, // Default to no poop if not present
           lastFed: saved.stats.lastFed,
           lastInteraction: now
         },
@@ -68,6 +99,8 @@ export class CrabStateManager {
         hunger: 80,
         happiness: 70,
         energy: 100,
+        hygiene: 100,
+        poopCount: 0,
         lastFed: Date.now(),
         lastInteraction: Date.now()
       },
@@ -76,7 +109,137 @@ export class CrabStateManager {
   }
 
   private saveState(): void {
-    this.context.globalState.update('crabState', this.state);
+    // Don't persist easter egg state - it's temporary
+    const { customBubble, easterEggType, ...stateToSave } = this.state;
+    this.context.globalState.update('crabState', stateToSave);
+  }
+
+  private loadLifetimeStats(): CrabLifetimeStats {
+    const saved = this.context.globalState.get<CrabLifetimeStats>('crabLifetimeStats');
+    if (saved) {
+      return saved;
+    }
+    // New crab - set birth date
+    return {
+      birthDate: Date.now(),
+      wellbeingHistory: []
+    };
+  }
+
+  private saveLifetimeStats(): void {
+    this.context.globalState.update('crabLifetimeStats', this.lifetimeStats);
+  }
+
+  private startWellbeingTracker(): void {
+    // Record wellbeing every hour
+    this.wellbeingTimer = setInterval(() => {
+      this.recordWellbeing();
+    }, 60 * 60 * 1000); // 1 hour
+
+    // Also record on startup
+    this.recordWellbeing();
+  }
+
+  private recordWellbeing(): void {
+    const score = this.calculateWellbeing();
+    this.lifetimeStats.wellbeingHistory.push({
+      timestamp: Date.now(),
+      score
+    });
+    // Keep last 7 days of hourly data (168 entries max)
+    if (this.lifetimeStats.wellbeingHistory.length > 168) {
+      this.lifetimeStats.wellbeingHistory = this.lifetimeStats.wellbeingHistory.slice(-168);
+    }
+    this.saveLifetimeStats();
+  }
+
+  public calculateWellbeing(): number {
+    const { hunger, happiness, energy, hygiene } = this.state.stats;
+    return Math.round((hunger + happiness + energy + hygiene) / 4);
+  }
+
+  public getWellbeingTrend(): 'up' | 'down' | 'stable' {
+    const history = this.lifetimeStats.wellbeingHistory;
+    if (history.length < 2) return 'stable';
+
+    // Compare recent average (last 6 hours) vs older (6-24 hours ago)
+    const now = Date.now();
+    const sixHoursAgo = now - 6 * 60 * 60 * 1000;
+    const dayAgo = now - 24 * 60 * 60 * 1000;
+
+    const recent = history.filter(h => h.timestamp > sixHoursAgo);
+    const older = history.filter(h => h.timestamp <= sixHoursAgo && h.timestamp > dayAgo);
+
+    if (recent.length === 0 || older.length === 0) return 'stable';
+
+    const recentAvg = recent.reduce((sum, h) => sum + h.score, 0) / recent.length;
+    const olderAvg = older.reduce((sum, h) => sum + h.score, 0) / older.length;
+
+    const diff = recentAvg - olderAvg;
+    if (diff > 5) return 'up';
+    if (diff < -5) return 'down';
+    return 'stable';
+  }
+
+  public getSparkline(hours: number, bars: number = 8): string {
+    const blocks = ['▁', '▂', '▃', '▄', '▅', '▆', '▇', '█'];
+    const history = this.lifetimeStats.wellbeingHistory;
+    const now = Date.now();
+    const cutoff = now - hours * 60 * 60 * 1000;
+
+    const relevant = history.filter(h => h.timestamp > cutoff);
+    if (relevant.length === 0) return blocks[4].repeat(bars); // Default middle
+
+    // Divide into time buckets
+    const bucketSize = (hours * 60 * 60 * 1000) / bars;
+    const buckets: number[][] = Array.from({ length: bars }, () => []);
+
+    for (const entry of relevant) {
+      const bucketIndex = Math.min(
+        bars - 1,
+        Math.floor((entry.timestamp - cutoff) / bucketSize)
+      );
+      buckets[bucketIndex].push(entry.score);
+    }
+
+    // Calculate average for each bucket, interpolate empty ones
+    const averages = buckets.map(bucket => {
+      if (bucket.length === 0) return null;
+      return bucket.reduce((a, b) => a + b, 0) / bucket.length;
+    });
+
+    // Fill empty buckets with interpolated values
+    let lastValue = 50;
+    for (let i = 0; i < averages.length; i++) {
+      if (averages[i] === null) {
+        averages[i] = lastValue;
+      } else {
+        lastValue = averages[i]!;
+      }
+    }
+
+    // Convert to blocks (0-100 -> 0-7 index)
+    return (averages as number[])
+      .map(v => blocks[Math.min(7, Math.floor(v / 12.5))])
+      .join('');
+  }
+
+  public getCrabAge(): string {
+    const ageMs = Date.now() - this.lifetimeStats.birthDate;
+    const days = Math.floor(ageMs / (24 * 60 * 60 * 1000));
+
+    if (days >= 365) {
+      const years = Math.floor(days / 365);
+      return years === 1 ? '1 year' : `${years} years`;
+    } else if (days >= 30) {
+      const months = Math.floor(days / 30);
+      return months === 1 ? '1 month' : `${months} months`;
+    } else if (days >= 7) {
+      const weeks = Math.floor(days / 7);
+      return weeks === 1 ? '1 week' : `${weeks} weeks`;
+    } else {
+      return days === 1 ? '1 day' : `${days} days`;
+    }
   }
 
   private startDecayTimer(): void {
@@ -109,9 +272,22 @@ export class CrabStateManager {
   }
 
   private decayStats(): void {
+    const timeSinceActivity = Date.now() - this.lastActivity;
+    const isSleeping = timeSinceActivity >= INACTIVITY_THRESHOLD;
+
     this.state.stats.hunger = Math.max(0, this.state.stats.hunger - HUNGER_DECAY_RATE);
-    this.state.stats.happiness = Math.max(0, this.state.stats.happiness - HAPPINESS_DECAY_RATE);
-    this.state.stats.energy = Math.max(0, this.state.stats.energy - ENERGY_DECAY_RATE);
+
+    // Extra happiness drain when hygiene is low
+    const hygieneBonus = this.state.stats.hygiene < LOW_HYGIENE_THRESHOLD ? 1 : 0;
+    this.state.stats.happiness = Math.max(0, this.state.stats.happiness - HAPPINESS_DECAY_RATE - hygieneBonus);
+    this.capHappiness(); // Can't be too happy when dirty
+
+    // Recover energy while sleeping, drain while active
+    if (isSleeping) {
+      this.state.stats.energy = Math.min(100, this.state.stats.energy + ENERGY_RECOVERY_RATE);
+    } else {
+      this.state.stats.energy = Math.max(0, this.state.stats.energy - ENERGY_DECAY_RATE);
+    }
     this.state.stats.lastInteraction = Date.now();
 
     // Force emotions based on low stats
@@ -167,17 +343,26 @@ export class CrabStateManager {
   // Event handlers for different triggers
   public onSuccess(): void {
     this.state.stats.happiness = Math.min(100, this.state.stats.happiness + 5);
+    this.capHappiness();
     this.setEmotion('happy');
   }
 
   public onMultipleSuccesses(): void {
     this.state.stats.happiness = Math.min(100, this.state.stats.happiness + 10);
+    this.capHappiness();
     this.setEmotion('excited', 8000);
   }
 
   // Called when Claude is actively working (tool calls, etc.)
   public onActivity(): void {
     this.state.stats.energy = Math.max(0, this.state.stats.energy - ACTIVITY_ENERGY_DRAIN);
+  }
+
+  // Called based on output token usage (drain = tokens / 3000, capped at 6)
+  public onTokenUsage(drain: number): void {
+    this.state.stats.energy = Math.max(0, this.state.stats.energy - drain);
+    this.saveState();
+    this.notifyChange();
   }
 
   public onError(): void {
@@ -210,11 +395,37 @@ export class CrabStateManager {
     this.setEmotion('claudeFan', 8000);
   }
 
-  public onLongSession(): void {
-    this.state.stats.energy = Math.max(0, this.state.stats.energy - 15);
-    if (this.state.stats.energy < 30) {
-      this.setEmotion('tired', 10000);
+  public onForcePush(username: string): void {
+    this.state.customBubble = `USE THE FORCE,\n${username.toUpperCase()}!`;
+    this.state.easterEggType = 'force';
+    this.setEmotion('excited', 8000);
+    // Clear custom bubble after emotion expires
+    setTimeout(() => {
+      this.state.customBubble = undefined;
+      this.state.easterEggType = undefined;
+      this.notifyChange();
+    }, 8000);
+  }
+
+  public onCommit(branch: string): void {
+    const now = new Date();
+    const isFriday = now.getDay() === 5;
+    const hour = now.getHours();
+    const isFridayAfternoon = isFriday && hour >= 14; // Friday 2pm or later
+
+    if (isFridayAfternoon) {
+      this.state.customBubble = `FRIDAY DEPLOY?\nYOU BRAVE SOUL!`;
+      this.state.easterEggType = 'friday';
+    } else {
+      this.state.customBubble = `ALL YOUR CODE ARE\nBELONG TO ${branch.toUpperCase()}`;
+      this.state.easterEggType = 'commit';
     }
+    this.setEmotion('happy', 6000);
+    setTimeout(() => {
+      this.state.customBubble = undefined;
+      this.state.easterEggType = undefined;
+      this.notifyChange();
+    }, 6000);
   }
 
   // Random value between min and max (inclusive)
@@ -222,19 +433,88 @@ export class CrabStateManager {
     return Math.floor(Math.random() * (max - min + 1)) + min;
   }
 
+  // Cap happiness based on current hygiene level
+  private capHappiness(): void {
+    const maxHappiness = getMaxHappiness(this.state.stats.hygiene);
+    this.state.stats.happiness = Math.min(this.state.stats.happiness, maxHappiness);
+  }
+
   // Manual interactions
-  public feed(): void {
-    this.state.stats.hunger = Math.min(100, this.state.stats.hunger + this.randomRange(5, 15));
+  // Returns: 'normal' | 'overfed' | 'stuffed'
+  public feed(): 'normal' | 'overfed' | 'stuffed' {
+    // Stuffed: hunger >= 91, refuse food
+    if (this.state.stats.hunger >= 91) {
+      return 'stuffed';
+    }
+
+    // Add food
+    const foodAmount = this.randomRange(5, 15);
+    this.state.stats.hunger = Math.min(100, this.state.stats.hunger + foodAmount);
     this.state.stats.lastFed = Date.now();
+
+    // Overfed: hunger was > 70, causes poop
+    if (this.state.stats.hunger > 70) {
+      this.state.stats.poopCount++;
+      this.state.stats.hygiene = Math.max(0, this.state.stats.hygiene - POOP_HYGIENE_PENALTY);
+      this.capHappiness(); // Immediately cap happiness when hygiene drops
+      this.setEmotion('happy');
+      this.saveState();
+      return 'overfed';
+    }
+
+    // Normal feed
     this.setEmotion('happy');
     this.saveState();
+    return 'normal';
   }
 
   public pet(): void {
     this.state.stats.happiness = Math.min(100, this.state.stats.happiness + this.randomRange(5, 15));
-    this.state.stats.energy = Math.min(100, this.state.stats.energy + this.randomRange(5, 15));
+    this.capHappiness();
+    // Energy boost capped at 20%
+    this.state.stats.energy = Math.min(20, this.state.stats.energy + this.randomRange(5, 15));
     this.setEmotion('excited');
     this.saveState();
+  }
+
+  public clean(): void {
+    this.state.stats.poopCount = 0;
+    this.state.stats.hygiene = 100;
+    this.state.stats.happiness = Math.min(100, this.state.stats.happiness + 5); // Happy to be clean!
+    // No need to cap - hygiene is now 100
+    this.setEmotion('happy');
+    this.saveState();
+  }
+
+  // Scrub: clean 10 hygiene points, returns true if now fully clean
+  public scrub(): boolean {
+    this.state.stats.hygiene = Math.min(100, this.state.stats.hygiene + 10);
+    if (this.state.stats.hygiene >= 100) {
+      this.state.stats.poopCount = 0;
+      this.state.stats.happiness = Math.min(100, this.state.stats.happiness + 5);
+      this.setEmotion('happy');
+    }
+    // Happiness cap may have increased with hygiene - no need to cap here
+    this.saveState();
+    this.notifyChange();
+    return this.state.stats.hygiene >= 100;
+  }
+
+  public addPoop(): void {
+    this.state.stats.poopCount++;
+    this.state.stats.hygiene = Math.max(0, this.state.stats.hygiene - POOP_HYGIENE_PENALTY);
+    this.capHappiness(); // Immediately cap happiness when hygiene drops
+    this.saveState();
+    this.notifyChange();
+  }
+
+  private scheduleRandomPoop(): void {
+    // Random time between 45-60 minutes
+    const delay = POOP_TIMER_MIN + Math.random() * (POOP_TIMER_MAX - POOP_TIMER_MIN);
+    this.poopTimer = setTimeout(() => {
+      this.addPoop();
+      this.scheduleRandomPoop(); // Schedule next poop
+    }, delay);
   }
 
   public dispose(): void {
@@ -244,6 +524,13 @@ export class CrabStateManager {
     if (this.inactivityTimer) {
       clearInterval(this.inactivityTimer);
     }
+    if (this.poopTimer) {
+      clearTimeout(this.poopTimer);
+    }
+    if (this.wellbeingTimer) {
+      clearInterval(this.wellbeingTimer);
+    }
     this.saveState();
+    this.saveLifetimeStats();
   }
 }

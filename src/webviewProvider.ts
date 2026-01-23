@@ -51,10 +51,23 @@ export class CrabWebviewProvider implements vscode.WebviewViewProvider {
     webviewView.webview.onDidReceiveMessage((message) => {
       switch (message.command) {
         case 'feed':
-          this.stateManager.feed();
+          const feedResult = this.stateManager.feed();
+          // Send result back to webview for appropriate animation
+          if (this.view) {
+            this.view.webview.postMessage({ type: 'feedResult', result: feedResult });
+          }
           break;
         case 'pet':
           this.stateManager.pet();
+          break;
+        case 'clean':
+          this.stateManager.clean();
+          break;
+        case 'scrub':
+          const isClean = this.stateManager.scrub();
+          if (this.view) {
+            this.view.webview.postMessage({ type: 'scrubResult', isClean });
+          }
           break;
         case 'setEmotion':
           this.stateManager.setEmotion(message.emotion as Emotion, 10000);
@@ -103,9 +116,15 @@ export class CrabWebviewProvider implements vscode.WebviewViewProvider {
     this.view.webview.postMessage({
       type: 'update',
       art: frame.art,  // Now an array of lines
-      bubble: frame.bubble || '',
+      bubble: state.customBubble || frame.bubble || '',
       emotion: emotionLabels[state.emotion],
-      stats: state.stats
+      stats: state.stats,
+      easterEggType: state.easterEggType,
+      crabAge: this.stateManager.getCrabAge(),
+      wellbeing: this.stateManager.calculateWellbeing(),
+      wellbeingTrend: this.stateManager.getWellbeingTrend(),
+      sparkline24h: this.stateManager.getSparkline(24, 8),
+      sparkline7d: this.stateManager.getSparkline(168, 8)
     });
   }
 
@@ -125,6 +144,11 @@ export class CrabWebviewProvider implements vscode.WebviewViewProvider {
     };
   }
 
+  private getStatsEnabled(): boolean {
+    const config = vscode.workspace.getConfiguration('crabgotchi');
+    return config.get('showStats', true);
+  }
+
   private hexToRgba(hex: string, alpha: number): string {
     const r = parseInt(hex.slice(1, 3), 16);
     const g = parseInt(hex.slice(3, 5), 16);
@@ -136,6 +160,7 @@ export class CrabWebviewProvider implements vscode.WebviewViewProvider {
     const colors = this.getColors();
     const crabGlow = this.hexToRgba(colors.crabColor, 0.3);
     const timer = this.getTimerSettings();
+    const showStats = this.getStatsEnabled();
 
     return `<!DOCTYPE html>
 <html lang="en">
@@ -193,6 +218,54 @@ export class CrabWebviewProvider implements vscode.WebviewViewProvider {
     @keyframes float {
       0%, 100% { transform: translateY(0); }
       50% { transform: translateY(-5px); }
+    }
+
+    /* Easter egg messages - left side, angled, fixed position */
+    .easter-egg-msg {
+      position: fixed;
+      font-size: 9px;
+      font-weight: bold;
+      white-space: pre-line;
+      text-align: center;
+      transform: rotate(-12deg);
+      text-shadow:
+        -1px -1px 0 #000,
+        1px -1px 0 #000,
+        -1px 1px 0 #000,
+        1px 1px 0 #000;
+      animation: easterEggPulse 2s ease-in-out infinite;
+      z-index: 100;
+      pointer-events: none;
+      display: none;
+    }
+
+    .easter-egg-msg.force {
+      color: #FFE81F; /* Star Wars yellow */
+      text-shadow:
+        -1px -1px 0 #000,
+        1px -1px 0 #000,
+        -1px 1px 0 #000,
+        1px 1px 0 #000,
+        0 0 2px #FFE81F;
+    }
+
+    .easter-egg-msg.commit {
+      color: #E85820; /* Orange from Zero Wing */
+    }
+
+    .easter-egg-msg.friday {
+      color: #ff6b6b; /* Warning red for Friday deploys */
+      text-shadow:
+        -1px -1px 0 #000,
+        1px -1px 0 #000,
+        -1px 1px 0 #000,
+        1px 1px 0 #000,
+        0 0 3px #ff6b6b;
+    }
+
+    @keyframes easterEggPulse {
+      0%, 100% { opacity: 1; }
+      50% { opacity: 0.8; }
     }
 
     .crab-art {
@@ -258,24 +331,42 @@ export class CrabWebviewProvider implements vscode.WebviewViewProvider {
 
     .buttons {
       display: flex;
-      gap: 6px;
+      gap: 10px;
       margin-top: 8px;
     }
 
     button {
-      padding: 4px 10px;
+      padding: 4px;
       font-family: inherit;
-      font-size: 10px;
-      border: 1px solid var(--vscode-button-border, var(--vscode-contrastBorder));
-      border-radius: 3px;
-      background: var(--vscode-button-secondaryBackground);
-      color: var(--vscode-button-secondaryForeground);
+      font-size: 16px;
+      border: none;
+      background: transparent;
       cursor: pointer;
-      transition: background 0.2s;
+      opacity: 0.5;
+      transition: opacity 0.2s, transform 0.1s;
     }
 
     button:hover {
-      background: var(--vscode-button-secondaryHoverBackground);
+      opacity: 0.8;
+    }
+
+    button.active {
+      opacity: 1;
+      transform: scale(1.1);
+    }
+
+    .crab-hit-area {
+      position: absolute;
+      top: -5px;
+      left: -15px;
+      right: -15px;
+      bottom: -5px;
+      border-radius: 8px;
+      z-index: 10;
+    }
+
+    .crab-hit-area.interactive {
+      cursor: pointer;
     }
 
     .credits {
@@ -285,16 +376,43 @@ export class CrabWebviewProvider implements vscode.WebviewViewProvider {
       text-align: center;
     }
 
-    .settings-toggle {
+    .bottom-bar {
+      display: flex;
+      gap: 8px;
       margin-top: 10px;
       font-size: 10px;
       opacity: 0.6;
+    }
+
+    .settings-toggle {
       cursor: pointer;
       user-select: none;
     }
 
     .settings-toggle:hover {
       opacity: 1;
+    }
+
+    .sparklines {
+      display: flex;
+      align-items: center;
+      gap: 4px;
+      margin-top: 6px;
+      font-size: 9px;
+      opacity: 0.7;
+    }
+
+    .sparkline-label {
+      opacity: 0.6;
+    }
+
+    .sparkline-divider {
+      opacity: 0.4;
+    }
+
+    .sparkline {
+      color: #61afef;
+      letter-spacing: -1px;
     }
 
     .settings-content {
@@ -530,12 +648,123 @@ export class CrabWebviewProvider implements vscode.WebviewViewProvider {
         transform: translate(var(--tx), var(--ty)) scale(0);
       }
     }
+
+    /* Poop & Hygiene styles */
+    .hygiene-stat {
+      display: none;
+    }
+
+    .poop-icons {
+      font-size: 10px;
+    }
+
+    body.mode-clean {
+      cursor: url('data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24"><text y="18" font-size="18">🧽</text></svg>') 12 12, pointer;
+    }
+
+    body.mode-feed {
+      cursor: url('data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24"><text y="18" font-size="18">🦐</text></svg>') 12 12, pointer;
+    }
+
+    body.mode-pet {
+      cursor: url('data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24"><text y="18" font-size="18">✋</text></svg>') 12 12, pointer;
+    }
+
+    body.mode-clean .crab-hit-area,
+    body.mode-feed .crab-hit-area,
+    body.mode-pet .crab-hit-area {
+      cursor: inherit;
+    }
+
+    .hygiene-stat.has-poop {
+      display: block;
+    }
+
+    .stink {
+      position: fixed;
+      font-size: 14px;
+      color: #98c379;
+      opacity: 0.7;
+      pointer-events: none;
+      animation: stinkFloat 4s ease-out forwards;
+      z-index: 100;
+    }
+
+    @keyframes stinkFloat {
+      0% { transform: translateY(0); opacity: 0.7; }
+      100% { transform: translateY(-50px); opacity: 0; }
+    }
+
+    .stink-cloud-left,
+    .stink-cloud-right {
+      position: fixed;
+      width: 40px;
+      height: 24px;
+      background: linear-gradient(135deg, rgba(139, 119, 91, 0.25) 0%, rgba(152, 195, 121, 0.2) 100%);
+      border-radius: 50% 50% 50% 50%;
+      pointer-events: none;
+      z-index: 50;
+      filter: blur(3px);
+    }
+
+    .stink-cloud-left {
+      animation: cloudSwayLeft 6s ease-in-out infinite;
+    }
+
+    .stink-cloud-left::before {
+      content: '';
+      position: absolute;
+      width: 28px;
+      height: 18px;
+      background: linear-gradient(135deg, rgba(139, 119, 91, 0.2) 0%, rgba(152, 195, 121, 0.15) 100%);
+      border-radius: 50%;
+      top: -10px;
+      left: 10px;
+    }
+
+    .stink-cloud-right {
+      animation: cloudSwayRight 7s ease-in-out infinite;
+    }
+
+    .stink-cloud-right::before {
+      content: '';
+      position: absolute;
+      width: 30px;
+      height: 20px;
+      background: linear-gradient(135deg, rgba(139, 119, 91, 0.2) 0%, rgba(152, 195, 121, 0.15) 100%);
+      border-radius: 50%;
+      top: -8px;
+      right: 6px;
+    }
+
+    .stink-cloud-right::after {
+      content: '';
+      position: absolute;
+      width: 18px;
+      height: 12px;
+      background: linear-gradient(135deg, rgba(139, 119, 91, 0.15) 0%, rgba(152, 195, 121, 0.1) 100%);
+      border-radius: 50%;
+      top: 28px;
+      right: 2px;
+    }
+
+    @keyframes cloudSwayLeft {
+      0%, 100% { transform: translateX(0); opacity: 0.4; }
+      50% { transform: translateX(-4px); opacity: 0.55; }
+    }
+
+    @keyframes cloudSwayRight {
+      0%, 100% { transform: translateX(0); opacity: 0.4; }
+      50% { transform: translateX(4px); opacity: 0.55; }
+    }
   </style>
 </head>
 <body>
   <div class="stars" id="stars"></div>
   <div class="moon">☽</div>
+  <div class="easter-egg-msg" id="easter-egg-msg"></div>
   <div class="crab-container">
+    <div class="crab-hit-area" id="crab-hit-area"></div>
     <div class="bubble" id="bubble"></div>
     <div class="crab-art" id="crab-art">
       <div class="crab-line">Loading...</div>
@@ -557,6 +786,10 @@ export class CrabWebviewProvider implements vscode.WebviewViewProvider {
       <span class="stat-name">Energy</span>
       <span class="stat-bar" id="energy-bar">[----------]</span>
     </div>
+    <div class="stat hygiene-stat" id="hygiene-stat">
+      <span class="stat-name">Hygiene</span>
+      <span class="stat-bar" id="hygiene-bar">[----------]</span>
+    </div>
     <div class="stat timer-stat${timer.enabled ? ' enabled' : ''}" id="timer-stat" title="Click to start/pause">
       <span class="stat-name" id="timer-label">Break</span>
       <span class="stat-bar" id="timer-bar">[##########]</span>
@@ -564,11 +797,19 @@ export class CrabWebviewProvider implements vscode.WebviewViewProvider {
   </div>
 
   <div class="buttons">
-    <button id="feed-btn">Feed</button>
-    <button id="pet-btn">Pet</button>
+    <button id="feed-btn" title="Feed">🦐</button>
+    <button id="pet-btn" title="Pet">✋</button>
+    <button id="clean-btn" title="Clean">🧽</button>
   </div>
 
-  <div class="settings-toggle" id="settings-toggle">&#9881; Settings</div>
+  <div class="bottom-bar">
+    <span class="settings-toggle" id="settings-toggle">&#9881; Settings</span>
+  </div>
+  <div class="sparklines" id="sparklines" title="Wellbeing: 50%"${showStats ? '' : ' style="display:none"'}>
+    <span class="sparkline-label">24h</span><span id="sparkline-24h" class="sparkline">▄▄▄▄▄▄▄▄</span>
+    <span class="sparkline-divider">|</span>
+    <span class="sparkline-label">7d</span><span id="sparkline-7d" class="sparkline">▄▄▄▄▄▄▄▄</span>
+  </div>
   <div class="settings-content" id="settings-content">
     <div class="timer-settings-row">
       <input type="checkbox" id="timer-enabled" class="timer-checkbox"${timer.enabled ? ' checked' : ''}>
@@ -576,6 +817,10 @@ export class CrabWebviewProvider implements vscode.WebviewViewProvider {
       <input type="number" id="timer-minutes" class="timer-input" value="${timer.minutes}" min="1" max="120">
       <span style="font-size: 11px; opacity: 0.7;">min</span>
       <span id="timer-reset" class="timer-icon-btn" title="Reset">⏹</span>
+    </div>
+    <div class="timer-settings-row">
+      <input type="checkbox" id="stats-enabled" class="timer-checkbox"${showStats ? ' checked' : ''}>
+      <label for="stats-enabled" style="font-size: 11px; opacity: 0.7;">Show stats</label>
     </div>
     <div class="color-row">
       <span class="color-label">Crab</span>
@@ -602,6 +847,7 @@ export class CrabWebviewProvider implements vscode.WebviewViewProvider {
       </div>
     </div>
     <div class="credits">Claude Code Crabgotchi</div>
+    <div class="credits">Crab age: <span id="crab-age">0 days</span></div>
   </div>
 
   <script>
@@ -613,11 +859,23 @@ export class CrabWebviewProvider implements vscode.WebviewViewProvider {
     const hungerBar = document.getElementById('hunger-bar');
     const happinessBar = document.getElementById('happiness-bar');
     const energyBar = document.getElementById('energy-bar');
+    const hygieneBar = document.getElementById('hygiene-bar');
+    const hygieneStat = document.getElementById('hygiene-stat');
+    const crabContainer = document.querySelector('.crab-container');
+    let stinkCloud = null;
 
     function makeAsciiBar(value) {
       const filled = Math.round(value / 10);
       const empty = 10 - filled;
       return '[' + '#'.repeat(filled) + '-'.repeat(empty) + ']';
+    }
+
+    function makePoopBar(hygiene) {
+      // Invert: low hygiene = more poop shown (5 slots to fit emojis)
+      const dirty = 5 - Math.round(hygiene / 20);
+      const clean = 5 - dirty;
+      const poopSpan = dirty > 0 ? '<span class="poop-icons">' + '💩'.repeat(dirty) + '</span>' : '';
+      return '[' + poopSpan + '-'.repeat(clean) + ']';
     }
 
     function getBarClass(value) {
@@ -626,14 +884,64 @@ export class CrabWebviewProvider implements vscode.WebviewViewProvider {
       return 'stat-bar good';
     }
 
-    document.getElementById('feed-btn').addEventListener('click', () => {
-      vscode.postMessage({ command: 'feed' });
-      spawnNoms();
+    let interactionMode = null; // 'feed', 'pet', 'clean', or null
+    const feedBtn = document.getElementById('feed-btn');
+    const petBtn = document.getElementById('pet-btn');
+    const cleanBtn = document.getElementById('clean-btn');
+    const hitArea = document.getElementById('crab-hit-area');
+
+    function setInteractionMode(mode) {
+      // Toggle off if same mode clicked
+      if (interactionMode === mode) {
+        interactionMode = null;
+      } else {
+        interactionMode = mode;
+      }
+
+      // Update button active states
+      feedBtn.classList.toggle('active', interactionMode === 'feed');
+      petBtn.classList.toggle('active', interactionMode === 'pet');
+      cleanBtn.classList.toggle('active', interactionMode === 'clean');
+
+      // Update hit area visibility
+      hitArea.classList.toggle('interactive', interactionMode !== null);
+
+      // Update cursor
+      document.body.classList.remove('mode-feed', 'mode-pet', 'mode-clean');
+      if (interactionMode) {
+        document.body.classList.add('mode-' + interactionMode);
+      }
+    }
+
+    feedBtn.addEventListener('click', () => setInteractionMode('feed'));
+    petBtn.addEventListener('click', () => setInteractionMode('pet'));
+    cleanBtn.addEventListener('click', () => setInteractionMode('clean'));
+
+    // Click on hit area to perform action
+    hitArea.addEventListener('click', (e) => {
+      if (!interactionMode) return;
+      e.stopPropagation();
+
+      switch (interactionMode) {
+        case 'feed':
+          vscode.postMessage({ command: 'feed' });
+          break;
+        case 'pet':
+          vscode.postMessage({ command: 'pet' });
+          spawnHearts();
+          break;
+        case 'clean':
+          vscode.postMessage({ command: 'scrub' });
+          spawnSparkles();
+          break;
+      }
     });
 
-    document.getElementById('pet-btn').addEventListener('click', () => {
-      vscode.postMessage({ command: 'pet' });
-      spawnHearts();
+    // Click elsewhere to exit interaction mode
+    document.body.addEventListener('click', (e) => {
+      if (interactionMode && !e.target.closest('.crab-hit-area') && !e.target.closest('.buttons')) {
+        setInteractionMode(null);
+      }
     });
 
     function spawnHearts() {
@@ -694,6 +1002,120 @@ export class CrabWebviewProvider implements vscode.WebviewViewProvider {
 
           setTimeout(() => particle.remove(), 800);
         }, i * 50);
+      }
+    }
+
+    function spawnSparkles() {
+      const crabRect = crabContainer.getBoundingClientRect();
+      const centerX = crabRect.left + crabRect.width / 2;
+      const centerY = crabRect.top + crabRect.height / 2;
+
+      for (let i = 0; i < 8; i++) {
+        setTimeout(() => {
+          const sparkle = document.createElement('div');
+          sparkle.className = 'particle';
+          sparkle.textContent = '✨';
+          sparkle.style.left = (centerX - 30 + Math.random() * 60) + 'px';
+          sparkle.style.top = (centerY - 20 + Math.random() * 40) + 'px';
+          sparkle.style.background = 'transparent';
+          sparkle.style.width = 'auto';
+          sparkle.style.height = 'auto';
+          sparkle.style.fontSize = '12px';
+          const angle = Math.random() * Math.PI * 2;
+          const distance = 15 + Math.random() * 25;
+          sparkle.style.setProperty('--tx', Math.cos(angle) * distance + 'px');
+          sparkle.style.setProperty('--ty', Math.sin(angle) * distance + 'px');
+          document.body.appendChild(sparkle);
+
+          setTimeout(() => sparkle.remove(), 800);
+        }, i * 60);
+      }
+    }
+
+    function spawnStink() {
+      const crabRect = crabContainer.getBoundingClientRect();
+      const stink = document.createElement('div');
+      stink.className = 'stink';
+      stink.textContent = '~';
+      // Spawn on left or right side of crab
+      const onLeft = Math.random() > 0.5;
+      if (onLeft) {
+        stink.style.left = (crabRect.left - 10 + Math.random() * 15) + 'px';
+      } else {
+        stink.style.left = (crabRect.right - 5 + Math.random() * 15) + 'px';
+      }
+      stink.style.top = (crabRect.top + 20 + Math.random() * (crabRect.height - 30)) + 'px';
+      document.body.appendChild(stink);
+      setTimeout(() => stink.remove(), 3000);
+    }
+
+    let stinkInterval = null;
+
+    let lastPoopCount = 0;
+    let lastPoopIcons = 0;
+
+    let lastHygiene = 100;
+
+    function updateStinkEffect(poopCount, poopIconsShown, hygiene) {
+      // Only update if values changed
+      if (poopCount === lastPoopCount && poopIconsShown === lastPoopIcons && hygiene === lastHygiene) return;
+      lastPoopCount = poopCount;
+      lastPoopIcons = poopIconsShown;
+      lastHygiene = hygiene;
+
+      const needsCleaning = hygiene <= 80;
+
+      // Clear existing stink timeout
+      if (stinkInterval) {
+        clearTimeout(stinkInterval);
+        stinkInterval = null;
+      }
+
+      // Remove stink clouds if below 4 poop icons or clean
+      if ((poopIconsShown < 4 || !needsCleaning) && stinkCloud) {
+        stinkCloud.forEach(c => c.remove());
+        stinkCloud = null;
+      }
+
+      // Only show stink when hygiene <= 80 (same threshold as clean button)
+      if (poopCount > 0 && needsCleaning) {
+        // Spawn one immediately, then with random intervals
+        spawnStink();
+        const baseInterval = poopIconsShown >= 4 ? 2500 : 4000;
+
+        function scheduleNextStink() {
+          const randomDelay = baseInterval + Math.random() * baseInterval; // 1x to 2x
+          stinkInterval = setTimeout(() => {
+            spawnStink();
+            scheduleNextStink();
+          }, randomDelay);
+        }
+        scheduleNextStink();
+
+        // Add stink clouds for 4+ poop icons (only if not already created)
+        if (poopIconsShown >= 4 && !stinkCloud) {
+          const crabRect = crabContainer.getBoundingClientRect();
+
+          const leftCloud = document.createElement('div');
+          leftCloud.className = 'stink-cloud-left';
+          leftCloud.style.left = (crabRect.left - 25) + 'px';
+          leftCloud.style.top = (crabRect.top + 35) + 'px';
+
+          const rightCloud = document.createElement('div');
+          rightCloud.className = 'stink-cloud-right';
+          rightCloud.style.left = (crabRect.right - 15) + 'px';
+          rightCloud.style.top = (crabRect.top + 15) + 'px';
+
+          document.body.appendChild(leftCloud);
+          document.body.appendChild(rightCloud);
+          stinkCloud = [leftCloud, rightCloud];
+        }
+      } else {
+        // No poop - remove clouds
+        if (stinkCloud) {
+          stinkCloud.forEach(c => c.remove());
+          stinkCloud = null;
+        }
       }
     }
 
@@ -803,6 +1225,12 @@ export class CrabWebviewProvider implements vscode.WebviewViewProvider {
       if (enabled) resetTimer();
     });
 
+    document.getElementById('stats-enabled').addEventListener('change', (e) => {
+      const enabled = e.target.checked;
+      document.getElementById('sparklines').style.display = enabled ? '' : 'none';
+      vscode.postMessage({ command: 'setSetting', setting: 'showStats', value: enabled });
+    });
+
     document.getElementById('timer-minutes').addEventListener('change', (e) => {
       const mins = parseInt(e.target.value) || 25;
       vscode.postMessage({ command: 'setSetting', setting: 'breakTimer.minutes', value: mins });
@@ -847,6 +1275,8 @@ export class CrabWebviewProvider implements vscode.WebviewViewProvider {
     // Check time every minute to auto-toggle
     setInterval(updateNightMode, 60000);
 
+    const easterEggMsg = document.getElementById('easter-egg-msg');
+
     window.addEventListener('message', (event) => {
       const message = event.data;
       if (message.type === 'update') {
@@ -862,8 +1292,27 @@ export class CrabWebviewProvider implements vscode.WebviewViewProvider {
             return '<div class="crab-line">' + line + '</div>';
           })
           .join('');
-        bubble.textContent = message.bubble;
+
+        // Handle easter egg messages (force push, commit)
+        if (message.easterEggType) {
+          const crabRect = crabContainer.getBoundingClientRect();
+          easterEggMsg.textContent = message.bubble;
+          easterEggMsg.className = 'easter-egg-msg ' + message.easterEggType;
+          easterEggMsg.style.left = '50px';
+          easterEggMsg.style.top = '50px';
+          easterEggMsg.style.display = 'block';
+          bubble.textContent = '';
+        } else {
+          easterEggMsg.style.display = 'none';
+          bubble.textContent = message.bubble;
+        }
         emotion.textContent = message.emotion;
+
+        // Update age and sparklines
+        document.getElementById('crab-age').textContent = message.crabAge;
+        document.getElementById('sparkline-24h').textContent = message.sparkline24h;
+        document.getElementById('sparkline-7d').textContent = message.sparkline7d;
+        document.getElementById('sparklines').title = 'Wellbeing: ' + message.wellbeing + '%';
 
         const stats = message.stats;
         hungerBar.textContent = makeAsciiBar(stats.hunger);
@@ -872,6 +1321,51 @@ export class CrabWebviewProvider implements vscode.WebviewViewProvider {
         happinessBar.className = getBarClass(stats.happiness);
         energyBar.textContent = makeAsciiBar(stats.energy);
         energyBar.className = getBarClass(stats.energy);
+
+        // Hygiene and poop - show poop bar (inverted: more poop = dirtier)
+        hygieneBar.innerHTML = makePoopBar(stats.hygiene);
+        hygieneBar.className = getBarClass(stats.hygiene);
+        const poopCount = stats.poopCount || 0;
+        const poopIconsShown = 5 - Math.round(stats.hygiene / 20); // Same as makePoopBar
+        hygieneStat.classList.toggle('has-poop', poopCount > 0 || stats.hygiene < 100);
+        updateStinkEffect(poopCount, poopIconsShown, stats.hygiene);
+
+        // Show/hide hygiene bar and clean button based on hygiene
+        const needsCleaning = stats.hygiene <= 80;
+        hygieneStat.style.display = needsCleaning ? '' : 'none';
+        document.getElementById('clean-btn').style.display = needsCleaning ? '' : 'none';
+        // Exit clean mode if button hidden
+        if (!needsCleaning && interactionMode === 'clean') {
+          setInteractionMode(null);
+        }
+      } else if (message.type === 'feedResult') {
+        // Handle feed result animations
+        if (message.result === 'normal') {
+          spawnNoms();
+        } else if (message.result === 'overfed') {
+          spawnNoms();
+          // Spawn poop after a short delay
+          setTimeout(() => {
+            const crabRect = crabContainer.getBoundingClientRect();
+            const poop = document.createElement('div');
+            poop.textContent = '💩';
+            poop.style.position = 'fixed';
+            poop.style.left = (crabRect.left + crabRect.width / 2) + 'px';
+            poop.style.top = (crabRect.bottom - 10) + 'px';
+            poop.style.fontSize = '16px';
+            poop.style.zIndex = '100';
+            poop.style.animation = 'nomBounce 0.8s ease-out forwards';
+            document.body.appendChild(poop);
+            setTimeout(() => poop.remove(), 800);
+          }, 300);
+        } else if (message.result === 'stuffed') {
+          // Show "full!" bubble - do nothing, crab will show reaction
+        }
+      } else if (message.type === 'scrubResult') {
+        // Exit cleaning mode if now fully clean
+        if (message.isClean) {
+          setInteractionMode(null);
+        }
       } else if (message.type === 'snoozeTimer') {
         // Snooze - set timer to snooze minutes and start
         timerCompleted = false;

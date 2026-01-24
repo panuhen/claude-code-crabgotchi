@@ -89,6 +89,12 @@ export class CrabWebviewProvider implements vscode.WebviewViewProvider {
             });
           this.stateManager.setEmotion('excited', 10000);
           break;
+        case 'konamiCode':
+          this.stateManager.onKonamiCode();
+          if (this.view) {
+            this.view.webview.postMessage({ type: 'konamiCode' });
+          }
+          break;
       }
     });
 
@@ -903,6 +909,8 @@ export class CrabWebviewProvider implements vscode.WebviewViewProvider {
     }
 
     let interactionMode = null; // 'feed', 'pet', 'clean', or null
+    let lastBubble = ''; // Track last bubble for temporary messages
+    let tempBubbleUntil = 0; // Timestamp until temporary bubble should show
     const feedBtn = document.getElementById('feed-btn');
     const petBtn = document.getElementById('pet-btn');
     const cleanBtn = document.getElementById('clean-btn');
@@ -1322,7 +1330,11 @@ export class CrabWebviewProvider implements vscode.WebviewViewProvider {
           bubble.textContent = '';
         } else {
           easterEggMsg.style.display = 'none';
-          bubble.textContent = message.bubble;
+          lastBubble = message.bubble;
+          // Only update bubble if no temporary message is active
+          if (Date.now() > tempBubbleUntil) {
+            bubble.textContent = message.bubble;
+          }
         }
         emotion.textContent = message.emotion;
 
@@ -1377,7 +1389,13 @@ export class CrabWebviewProvider implements vscode.WebviewViewProvider {
             setTimeout(() => poop.remove(), 800);
           }, 300);
         } else if (message.result === 'stuffed') {
-          // Show "full!" bubble - do nothing, crab will show reaction
+          // Show "*burp*" in bubble temporarily
+          bubble.textContent = '*burp*';
+          tempBubbleUntil = Date.now() + 2000;
+          setTimeout(() => {
+            tempBubbleUntil = 0;
+            bubble.textContent = lastBubble || '';
+          }, 2000);
         }
       } else if (message.type === 'scrubResult') {
         // Exit cleaning mode if now fully clean
@@ -1391,6 +1409,29 @@ export class CrabWebviewProvider implements vscode.WebviewViewProvider {
         timerTotal = timerSeconds;
         updateTimerBar();
         toggleTimer(); // Start it
+      } else if (message.type === 'konamiCode') {
+        // Show "KONAMI!" in bubble
+        bubble.textContent = 'KONAMI!';
+        tempBubbleUntil = Date.now() + 3000;
+        setTimeout(() => {
+          tempBubbleUntil = 0;
+          bubble.textContent = lastBubble || '';
+        }, 3000);
+      }
+    });
+
+    // Konami code: ↑ ↑ ↓ ↓ ← → ← →
+    const konamiCode = ['ArrowUp', 'ArrowUp', 'ArrowDown', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'ArrowLeft', 'ArrowRight'];
+    let konamiIndex = 0;
+    document.addEventListener('keydown', (e) => {
+      if (e.key === konamiCode[konamiIndex]) {
+        konamiIndex++;
+        if (konamiIndex === konamiCode.length) {
+          vscode.postMessage({ command: 'konamiCode' });
+          konamiIndex = 0;
+        }
+      } else {
+        konamiIndex = 0;
       }
     });
   </script>

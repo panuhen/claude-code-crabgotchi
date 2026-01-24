@@ -469,7 +469,7 @@ export class TerminalWatcher {
         const entry = JSON.parse(line);
         const outputTokens = entry?.message?.usage?.output_tokens;
         if (outputTokens && outputTokens > 0) {
-          const drain = Math.min(6, Math.floor(outputTokens / 5000));
+          const drain = Math.min(3, Math.floor(outputTokens / 5000));
           if (drain > 0) {
             this.stateManager.onTokenUsage(drain);
           }

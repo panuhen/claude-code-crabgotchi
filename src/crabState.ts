@@ -69,6 +69,7 @@ export class CrabStateManager {
   private poopTimer: NodeJS.Timeout | null = null;
   private wellbeingTimer: NodeJS.Timeout | null = null;
   private lastActivity: number = Date.now();
+  private lastDecay: number = Date.now();
   private callbacks: StateChangeCallback[] = [];
 
   constructor(context: vscode.ExtensionContext) {
@@ -283,23 +284,31 @@ export class CrabStateManager {
   }
 
   private decayStats(): void {
-    const timeSinceActivity = Date.now() - this.lastActivity;
+    const now = Date.now();
+    const timeSinceActivity = now - this.lastActivity;
+    const timeSinceLastDecay = now - this.lastDecay;
     const isSleeping = timeSinceActivity >= INACTIVITY_THRESHOLD;
 
+    // Normal decay for hunger and happiness (1 interval only)
     this.state.stats.hunger = Math.max(0, this.state.stats.hunger - HUNGER_DECAY_RATE);
 
     // Extra happiness drain when hygiene is low
     const hygieneBonus = this.state.stats.hygiene < LOW_HYGIENE_THRESHOLD ? 1 : 0;
     this.state.stats.happiness = Math.max(0, this.state.stats.happiness - HAPPINESS_DECAY_RATE - hygieneBonus);
 
-    // Recover energy while sleeping, drain while active
-    if (isSleeping) {
-      this.state.stats.energy = Math.min(100, this.state.stats.energy + ENERGY_RECOVERY_RATE);
-    } else {
-      this.state.stats.energy = Math.max(0, this.state.stats.energy - ENERGY_DECAY_RATE);
+    // Detect computer sleep/suspend for energy recovery
+    const missedIntervals = Math.floor(timeSinceLastDecay / STAT_DECAY_INTERVAL);
+
+    // Recover energy while sleeping (apply all missed intervals if computer was suspended)
+    // No passive energy drain - energy only depletes from actual Claude activity
+    if (isSleeping || missedIntervals > 1) {
+      const intervalsToApply = Math.max(1, missedIntervals);
+      this.state.stats.energy = Math.min(100, this.state.stats.energy + ENERGY_RECOVERY_RATE * intervalsToApply);
     }
+
+    this.lastDecay = now;
     this.capHappiness(); // Cap based on hygiene and energy
-    this.state.stats.lastInteraction = Date.now();
+    this.state.stats.lastInteraction = now;
 
     // Force emotions based on low stats (don't reset activity - these are passive, not user-triggered)
     if (this.state.stats.hunger < 20) {
@@ -372,7 +381,7 @@ export class CrabStateManager {
     this.capHappiness(); // Low energy caps happiness
   }
 
-  // Called based on output token usage (drain = tokens / 3000, capped at 6)
+  // Called based on output token usage (drain = tokens / 5000, capped at 3)
   public onTokenUsage(drain: number): void {
     this.state.stats.energy = Math.max(0, this.state.stats.energy - drain);
     this.capHappiness(); // Low energy caps happiness
@@ -486,8 +495,6 @@ export class CrabStateManager {
   public pet(): void {
     this.state.stats.happiness = Math.min(100, this.state.stats.happiness + this.randomRange(5, 15));
     this.capHappiness();
-    // Energy boost capped at 20%
-    this.state.stats.energy = Math.min(20, this.state.stats.energy + this.randomRange(5, 15));
     this.setEmotion('excited');
     this.saveState();
   }
@@ -519,6 +526,14 @@ export class CrabStateManager {
     this.state.stats.poopCount++;
     this.state.stats.hygiene = Math.max(0, this.state.stats.hygiene - POOP_HYGIENE_PENALTY);
     this.capHappiness(); // Immediately cap happiness when hygiene drops
+    this.saveState();
+    this.notifyChange();
+  }
+
+  public onKonamiCode(): void {
+    // Secret code: boost energy to 80%
+    this.state.stats.energy = Math.max(this.state.stats.energy, 80);
+    this.setEmotion('excited', 3000);
     this.saveState();
     this.notifyChange();
   }

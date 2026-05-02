@@ -2,10 +2,13 @@ import * as vscode from 'vscode';
 import { CrabStateManager } from './crabState';
 import { CrabWebviewProvider } from './webviewProvider';
 import { TerminalWatcher } from './terminalWatcher';
+import { MemefyWatcher } from './memefyWatcher';
+import { installMemefySkill } from './skillInstaller';
 
 let stateManager: CrabStateManager;
 let webviewProvider: CrabWebviewProvider;
 let terminalWatcher: TerminalWatcher;
+let memefyWatcher: MemefyWatcher;
 
 export function activate(context: vscode.ExtensionContext) {
   console.log('Claude Crab Tamagotchi is waking up!');
@@ -27,6 +30,11 @@ export function activate(context: vscode.ExtensionContext) {
   // Initialize and start terminal watcher
   terminalWatcher = new TerminalWatcher(stateManager);
   terminalWatcher.start();
+
+  // Install the bundled memefy Skill into ~/.claude/skills/ and watch its queue.
+  const skillDir = installMemefySkill(context);
+  memefyWatcher = new MemefyWatcher(webviewProvider, skillDir);
+  memefyWatcher.start();
 
   // Register commands
   context.subscriptions.push(
@@ -63,6 +71,10 @@ export function deactivate() {
 
   if (terminalWatcher) {
     terminalWatcher.dispose();
+  }
+
+  if (memefyWatcher) {
+    memefyWatcher.dispose();
   }
 
   if (webviewProvider) {

@@ -2,7 +2,7 @@
   "name": "claude-code-crabgotchi",
   "displayName": "Claude Code Crabgotchi",
   "description": "A cute ASCII crab companion that reacts to your Claude Code sessions",
-  "version": "0.1.8",
+  "version": "0.2.0",
   "publisher": "panuhen",
   "license": "MIT",
   "repository": {
@@ -119,6 +119,23 @@
           "type": "string",
           "default": "",
           "description": "Custom path to Claude logs folder (e.g., \\\\wsl$\\Ubuntu\\home\\username\\.claude\\projects). Leave empty for auto-detection."
+        },
+        "crabgotchi.memefy.enabled": {
+          "type": "boolean",
+          "default": true,
+          "description": "Allow Claude to send reaction GIFs that overlay the crab. Requires a Giphy API key."
+        },
+        "crabgotchi.memefy.giphyApiKey": {
+          "type": "string",
+          "default": "",
+          "description": "Giphy API key (free at https://developers.giphy.com/dashboard). Required for memefy GIFs."
+        },
+        "crabgotchi.memefy.duration": {
+          "type": "number",
+          "default": 4,
+          "minimum": 1,
+          "maximum": 30,
+          "description": "How long (in seconds) a memefy GIF stays visible."
         }
       }
     }

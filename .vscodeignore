@@ -7,4 +7,6 @@ tsconfig.json
 **/*.map
 *.md
 !README.md
+!skill/**/*.md
 block-builder.html
+*.vsix

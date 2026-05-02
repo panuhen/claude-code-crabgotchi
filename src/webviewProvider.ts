@@ -173,6 +173,7 @@ export class CrabWebviewProvider implements vscode.WebviewViewProvider {
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'none'; img-src https://*.giphy.com data:; style-src 'unsafe-inline'; script-src 'unsafe-inline';">
   <title>Claude Crab</title>
   <style>
     * {
@@ -225,6 +226,38 @@ export class CrabWebviewProvider implements vscode.WebviewViewProvider {
     @keyframes float {
       0%, 100% { transform: translateY(0); }
       50% { transform: translateY(-5px); }
+    }
+
+    /* Memefy GIF overlay — sits on top of the crab, fades in/out */
+    .memefy-overlay {
+      position: absolute;
+      top: 0;
+      left: 50%;
+      transform: translateX(-50%) scale(0.7);
+      max-width: 95%;
+      pointer-events: none;
+      opacity: 0;
+      transition: opacity 220ms ease, transform 320ms cubic-bezier(.16,1.2,.4,1);
+      z-index: 30;
+      filter: drop-shadow(0 4px 14px rgba(0,0,0,.55));
+    }
+    .memefy-overlay.show {
+      opacity: 1;
+      transform: translateX(-50%) scale(1);
+    }
+    .memefy-overlay img {
+      display: block;
+      max-width: 100%;
+      max-height: 180px;
+      border-radius: 8px;
+      border: 2px solid var(--vscode-focusBorder, #888);
+    }
+    .memefy-overlay .memefy-caption {
+      margin-top: 4px;
+      font-size: 9px;
+      text-align: center;
+      color: ${colors.bubbleColor};
+      text-shadow: -1px -1px 0 #000, 1px -1px 0 #000, -1px 1px 0 #000, 1px 1px 0 #000;
     }
 
     /* Easter egg messages - left side, angled, fixed position */
@@ -790,6 +823,7 @@ export class CrabWebviewProvider implements vscode.WebviewViewProvider {
   <div class="crab-container">
     <div class="crab-hit-area" id="crab-hit-area"></div>
     <div class="bubble" id="bubble"></div>
+    <div class="memefy-overlay" id="memefy-overlay"></div>
     <div class="crab-art" id="crab-art">
       <div class="crab-line">Loading...</div>
     </div>
@@ -1302,9 +1336,53 @@ export class CrabWebviewProvider implements vscode.WebviewViewProvider {
     setInterval(updateNightMode, 60000);
 
     const easterEggMsg = document.getElementById('easter-egg-msg');
+    const memefyOverlay = document.getElementById('memefy-overlay');
+    let memefyHideTimer = null;
+
+    function showMemefy({ url, query, duration }) {
+      if (!memefyOverlay) return;
+      // Defense in depth: only accept https URLs from giphy/giphy CDN hosts.
+      let safeUrl;
+      try {
+        const u = new URL(String(url));
+        if (u.protocol !== 'https:') return;
+        if (!/(^|\\.)giphy\\.com$/i.test(u.hostname)) return;
+        safeUrl = u.toString();
+      } catch (_) { return; }
+
+      if (memefyHideTimer) clearTimeout(memefyHideTimer);
+
+      // Build overlay via DOM APIs (no innerHTML, avoids XSS even if query
+      // ever contains markup).
+      memefyOverlay.replaceChildren();
+      const img = document.createElement('img');
+      img.src = safeUrl;
+      img.alt = String(query || '');
+      memefyOverlay.appendChild(img);
+      if (query) {
+        const cap = document.createElement('div');
+        cap.className = 'memefy-caption';
+        cap.textContent = String(query);
+        memefyOverlay.appendChild(cap);
+      }
+
+      // Force reflow so the transition replays even on repeat invocations.
+      void memefyOverlay.offsetWidth;
+      memefyOverlay.classList.add('show');
+
+      const dur = Math.max(1000, Number(duration) || 4000);
+      memefyHideTimer = setTimeout(() => {
+        memefyOverlay.classList.remove('show');
+        setTimeout(() => { memefyOverlay.replaceChildren(); }, 400);
+      }, dur);
+    }
 
     window.addEventListener('message', (event) => {
       const message = event.data;
+      if (message.type === 'memefy') {
+        showMemefy(message);
+        return;
+      }
       if (message.type === 'update') {
         const isLovestruck = message.emotion === 'Ferris! ♥' || message.emotion === 'Claude! ♥';
         // Render each line centered, with special eyes in white for lovestruck
@@ -1437,6 +1515,12 @@ export class CrabWebviewProvider implements vscode.WebviewViewProvider {
   </script>
 </body>
 </html>`;
+  }
+
+  public showMemefy(payload: { url: string; query: string; duration: number }): void {
+    if (!this.view) return;
+    this.view.webview.postMessage({ type: 'memefy', ...payload });
+    if (this.view.show) this.view.show(true);
   }
 
   public dispose(): void {

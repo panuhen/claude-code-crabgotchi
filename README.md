@@ -68,6 +68,23 @@ Built-in Pomodoro-style break timer:
 
 Automatic night mode between 11 PM - 5 AM with stars and moon.
 
+### Memefy — Claude can send you reaction GIFs
+
+Crabgotchi v0.2.0 ships a Claude Code Skill called **memefy**. When the
+extension activates, it installs the skill into `~/.claude/skills/memefy/`.
+From then on, Claude can drop a reaction GIF over the crab — celebrations,
+facepalms, mock outrage — by invoking the skill from any Claude Code
+session. The GIF fades in over the crab, plays for a few seconds, and
+vanishes. No terminal output, no TUI conflicts.
+
+Setup:
+
+1. Get a free Giphy API key at https://developers.giphy.com/dashboard
+2. Paste it into VS Code settings → `crabgotchi.memefy.giphyApiKey`
+3. Make sure the Crabgotchi sidebar is open while you use Claude Code
+
+Toggle off anytime with `crabgotchi.memefy.enabled = false`.
+
 ## Installation
 
 ### From VS Code Marketplace
@@ -110,6 +127,9 @@ Access settings via the gear icon in the Crabgotchi panel:
 | `crabgotchi.breakTimer.enabled` | Enable break timer | false |
 | `crabgotchi.breakTimer.minutes` | Timer duration in minutes | 25 |
 | `crabgotchi.showStats` | Show wellbeing sparklines | true |
+| `crabgotchi.memefy.enabled` | Allow Claude to send reaction GIFs | true |
+| `crabgotchi.memefy.giphyApiKey` | Giphy API key for memefy GIFs | (empty) |
+| `crabgotchi.memefy.duration` | How long a GIF stays on screen (seconds) | 4 |
 
 ## Requirements
 
